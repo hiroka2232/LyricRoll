@@ -1,0 +1,43 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="18 16 188 162" role="img" aria-label="Lyric Roll">
+  <!-- ============================================================
+       Lyric Roll ロゴ・マーク（文字なし）
+       logo.svg からワードマーク（LYRIC/ROLL の文字）とタグラインを外し、
+       ピアノロールのタイル部分だけを切り出したもの。
+       ホーム画面でタイトル文字の左に並べるアイコンとして使う。
+       ============================================================ -->
+  <defs>
+    <!-- 角丸タイルの内側だけにノートを描く（はみ出した分を切り取る）クリップ -->
+    <clipPath id="markClip">
+      <rect x="24" y="28" width="176" height="144" rx="14"/>
+    </clipPath>
+  </defs>
+
+  <!-- タイル本体（白地＋うっすら水色の枠） -->
+  <rect x="24" y="28" width="176" height="144" rx="14" fill="#ffffff" stroke="#cfeff1" stroke-width="2"/>
+
+  <g clip-path="url(#markClip)">
+    <!-- 真ん中のレーンだけごく薄く塗って、3本のレーンを見分けやすくする -->
+    <rect x="44" y="76" width="156" height="48" fill="#f4fbfa"/>
+
+    <!-- 左の鍵盤：3レーンぶん（向日葵 / ティール / 向日葵）-->
+    <rect x="24" y="28"  width="20" height="48" fill="#FFE08A"/>
+    <rect x="24" y="76"  width="20" height="48" fill="#86DDD4"/>
+    <rect x="24" y="124" width="20" height="48" fill="#FFE08A"/>
+    <!-- 鍵盤とレーンの境界線 -->
+    <line x1="44" y1="28" x2="44" y2="172" stroke="#cfeff1" stroke-width="2"/>
+
+    <!-- MIDI ノート（上=左1個 / 中=3個 / 下=右1個）-->
+    <rect x="52"  y="41"  width="40" height="22" rx="5" fill="#FFE08A"/>
+    <rect x="48"  y="89"  width="34" height="22" rx="5" fill="#86DDD4"/>
+    <rect x="90"  y="89"  width="30" height="22" rx="5" fill="#86DDD4"/>
+    <rect x="128" y="89"  width="44" height="22" rx="5" fill="#86DDD4"/>
+    <rect x="112" y="137" width="40" height="22" rx="5" fill="#FFE08A"/>
+
+    <!-- 再生ライン（playhead）：ビビッドピンク。半透明の帯＋実線 -->
+    <rect x="150" y="28" width="6" height="144" fill="#e12885" opacity="0.10"/>
+    <line x1="153" y1="28" x2="153" y2="172" stroke="#e12885" stroke-width="2"/>
+  </g>
+
+  <!-- 再生ラインの三角マーカー（タイルの上にちょこんと乗せる）-->
+  <path d="M147 22 L159 22 L153 30 Z" fill="#e12885"/>
+</svg>

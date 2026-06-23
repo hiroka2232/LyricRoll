@@ -1,0 +1,1100 @@
+/* 7セグメント表示フォント DSEG7 Classic（数値表示用．woff2 を自己ホスト）*/
+@font-face {
+  font-family: 'DSEG7 Classic';
+  src: url('./fonts/DSEG7Classic-Regular.woff2') format('woff2');
+  font-weight: 400;
+  font-style: normal;
+  font-display: swap;
+}
+@font-face {
+  font-family: 'DSEG7 Classic';
+  src: url('./fonts/DSEG7Classic-Bold.woff2') format('woff2');
+  font-weight: 700;
+  font-style: normal;
+  font-display: swap;
+}
+
+* {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+html, body {
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+  background: #f4fbfa;
+  color: #1e3a48;
+  /* 日本語UIは丸ゴシック．読み込み前は OS のゴシックで代替 */
+  font-family: 'M PLUS Rounded 1c', 'Hiragino Maru Gothic ProN',
+               'Segoe UI', 'Yu Gothic', 'Meiryo', system-ui, sans-serif;
+}
+
+/* フォーム部品はフォントを継承しないので UIフォントを引き継がせる */
+button, input, select, textarea {
+  font-family: inherit;
+}
+
+#app {
+  display: flex;
+  flex-direction: column;
+  height: 100vh;    /* 古いブラウザ用フォールバック */
+  /* 100dvh＝アドレスバー等を除いた実際に見えている高さ */
+  height: 100dvh;
+}
+
+/* ── ヘッダー ────────────────────────────────────── */
+#header {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 0 14px;
+  /* 向日葵カラー単色（config.js COLORS.BG_WARM と同じ）*/
+  background: #f7eecf;
+  border-bottom: none;
+  flex-shrink: 0;
+  /* 高さは画面比で固定（clamp で上下限を制限）*/
+  height: clamp(32px, 5.5vh, 60px);
+  position: relative;   /* 下端アクセント線(::after)の位置基準 */
+}
+
+/* 上部バーの下端のアクセント線（上部バーと同じ向日葵カラー単色）*/
+#header::after {
+  content: "";
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  height: 3px;
+  background: #f7eecf;
+}
+
+/* 曲名と作者を横一列に並べて上部の高さを節約する */
+#song-info {
+  flex: 1 1 auto;
+  min-width: 0;
+  /* 1行にまとめ，入り切らなければ後ろ（作者）から省略する */
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* タイトル・作者は inline 要素で1行に連結（省略は親 #song-info が行う）*/
+#song-title {
+  font-size: 14px;
+  font-weight: 600;
+  color: #1e3a48;
+}
+
+#song-artist {
+  font-size: 11px;
+  color: #6a9aaa;
+}
+
+#back-to-songs {
+  background: #ffffff;
+  color: #1e3a48;
+  padding: 3px 9px;
+  font-size: 12px;
+  border-radius: 0px;
+  border-color: #a7c8d8;
+  flex: none;          /* 最小幅を保ちタイトル領域を圧迫しない */
+  white-space: nowrap;
+}
+
+/* ── BPM / 小節 表示（下部ツールバー）──────── */
+/* 角の立った長方形・パステルの計器板 */
+#transport-readout {
+  display: flex;
+  align-items: stretch;
+  flex-shrink: 0;
+}
+
+.readout-cell {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 11px;
+  background: #f4fbfa;
+  border: 1px solid #b7dde6;
+  border-radius: 0;
+}
+
+/* 2つ目以降は左へ 1px 重ねて境界線を1本にする */
+.readout-cell + .readout-cell {
+  margin-left: -1px;
+}
+
+/* ラベル（♪）*/
+.readout-label {
+  font-size: 14px;
+  color: #6a9aaa;
+  line-height: 1;
+}
+
+/* 数値は7セグ表示フォントで計器らしく（未収録の文字は後ろのフォントで代替）*/
+.readout-value {
+  font-family: 'DSEG7 Classic', 'Share Tech Mono', 'Courier New', monospace;
+  font-size: 15px;
+  font-weight: bold;
+  color: #1e3a48;
+  letter-spacing: 1px;
+  text-align: center;
+}
+
+/* BPM はテンポ変更で桁数が変わる（例 150→75）ので，3桁ぶんの幅を確保してセル幅を固定する */
+#bpm-value {
+  display: inline-block;
+  min-width: 3.5ch;
+}
+
+/* コード名は英字を含むので等幅フォントで表示．長さで周囲の配置がずれないようセルを固定幅にする */
+.readout-value.readout-chord {
+  font-family: 'Share Tech Mono', 'Courier New', monospace;
+  display: inline-block;
+  width: 6.5em;
+  flex: none;
+  overflow: hidden;
+  white-space: nowrap;
+  text-align: center;
+}
+
+/* ── 再生バー（シークバー）────────────── */
+#seek {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  /* 余ったスペースを埋め，後ろのモードトグルを右端へ寄せる */
+  flex: 1;
+  min-width: 0;
+}
+
+/* 時間表示（等幅で幅が揺れないように）*/
+.seek-time {
+  font-family: 'DSEG7 Classic', 'Share Tech Mono', 'Courier New', monospace;
+  font-size: 11px;
+  color: #6a9aaa;
+  flex-shrink: 0;
+  min-width: 4ch;
+  text-align: center;
+}
+
+/* バー本体（角の立った長方形・パステル）*/
+#seek-bar {
+  position: relative;
+  flex: 1;
+  height: 8px;
+  background: #dff1f3;
+  border: 1px solid #b7dde6;
+  border-radius: 0;
+  cursor: pointer;   /* クリック/ドラッグで時間ジャンプ（デバッグ用）*/
+  overflow: hidden;
+}
+
+/* 再生済み部分の塗り */
+#seek-fill {
+  position: absolute;
+  left: 0;
+  top: 0;
+  height: 100%;
+  width: 0%;
+  background: #bfe3c8;
+}
+
+/* ── 下部ツールバー ──────────────────────────────── */
+#toolbar {
+  flex-shrink: 0;
+  /* 高さは画面比で固定（clamp で上下限を制限）*/
+  height: clamp(58px, 10vh, 116px);
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 0 12px;
+  background: #e9f6f0;
+  border-top: none;
+  position: relative;   /* 上端アクセント線(::before)の位置基準 */
+}
+
+/* 下部バーの上端のアクセント線（バーと同じパステルミント一色）*/
+#toolbar::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 0;
+  height: 3px;
+  background: #e9f6f0;
+  z-index: 3;
+}
+
+#toolbar button {
+  background: transparent;
+  border: none;
+  color: #5a8898;
+  line-height: 1;
+  padding: 10px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+}
+
+#toolbar button svg {
+  /* アイコンは画面横幅に応じて拡縮 */
+  width: clamp(16px, 1.6vw, 22px);
+  height: clamp(16px, 1.6vw, 22px);
+  display: block;
+}
+
+#toolbar button svg.spin {
+  animation: spin 0.8s linear infinite;
+}
+
+#toolbar button:hover:not(:disabled) {
+  color: #1e3a48;
+}
+
+/* 再生ボタンの色は #transport-controls .is-play 側でまとめて指定する
+   （ここで指定すると詳細度が勝って上書きしてしまうため）*/
+
+.toolbar-left,
+.toolbar-right {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-width: 0;
+}
+
+.toolbar-left {
+  padding-right: 8px;
+
+  /* 再生バーを，はみ出してきた右セクションより前面に置いて操作可能に保つ */
+  position: relative;
+  z-index: 1;
+  background: #e9f6f0;   /* 重なり時に背後を隠すため不透明 */
+}
+
+.toolbar-right {
+  justify-content: flex-end;
+}
+
+.toolbar-center {
+  display: flex;
+  align-items: center;
+  gap: 20px;
+  flex-shrink: 0;          /* 再生ボタン群は縮めない */
+
+  /* セクションが重なっても再生ボタン類を最前面にしてクリックを奪われないようにする．
+     z-index を効かせるため position を指定し，不透明な背景で背後を隠す */
+  position: relative;
+  z-index: 2;
+  background: #e9f6f0;
+}
+
+.toolbar-center button svg {
+  width: clamp(20px, 2.0vw, 30px);
+  height: clamp(20px, 2.0vw, 30px);
+}
+
+/* ── DAW 風トランスポート（停止・再生・一時停止）──────── */
+/* 隙間なく連結した角の立った長方形ボタンを横一列に並べる */
+#transport-controls {
+  display: flex;
+  align-items: stretch;
+}
+
+/* 各ボタン共通（#toolbar button を上書きするため #transport-controls で始める）*/
+#transport-controls .transport-btn {
+  background: #f4fbfa;
+  border: 1px solid #b7dde6;
+  border-radius: 0;
+  color: #41707f;
+  /* 余白は画面横幅に応じて拡縮 */
+  padding: clamp(7px, 0.8vw, 12px) clamp(12px, 1.6vw, 24px);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: background 0.15s, color 0.15s, border-color 0.15s, box-shadow 0.15s;
+}
+
+/* 2つ目以降は左へ 1px 重ねて隣との境界線を1本に見せる */
+#transport-controls .transport-btn + .transport-btn {
+  margin-left: -1px;
+}
+
+#transport-controls .transport-btn svg {
+  width: clamp(20px, 2.0vw, 30px);
+  height: clamp(20px, 2.0vw, 30px);
+  display: block;
+}
+
+#transport-controls .transport-btn:hover:not(:disabled) {
+  background: #ffffff;
+  color: #1e3a48;
+  border-color: #a7c8d8;
+}
+
+/* 押した瞬間：内側に少しへこんだ表現 */
+#transport-controls .transport-btn:active:not(:disabled) {
+  box-shadow: inset 0 2px 3px rgba(100, 170, 190, 0.3);
+}
+
+#transport-controls .transport-btn:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
+/* 再生ボタンだけミントグリーンで差し色 */
+#transport-controls .is-play {
+  background: #e6f6ec;
+  border-color: #9acab0;
+  color: #2f8a63;
+}
+
+#transport-controls .is-play:hover:not(:disabled) {
+  background: #d6f0df;
+  color: #237a54;
+}
+
+/* 再生中：濃いミントで点灯し押し込まれたように見せる */
+#transport-controls .is-play.playing {
+  background: #bfe3c8;
+  border-color: #7fb795;
+  color: #1e6a47;
+  box-shadow: inset 0 2px 4px rgba(60, 130, 90, 0.35);
+}
+
+/* ── 音量コントロール ────────────────────────────── */
+#volume-control {
+  position: relative;
+  display: flex;
+  align-items: center;
+}
+
+#volume-popup {
+  position: absolute;
+  bottom: calc(100% + 8px);
+  right: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  padding: 14px 10px;
+  background: #f4fbfa;
+  border: 1px solid #b7dde6;
+  border-radius: 8px;
+  box-shadow: 0 6px 20px rgba(100, 170, 190, 0.18);
+}
+
+#volume-popup.hidden {
+  display: none;
+}
+
+#volume-slider {
+  writing-mode: vertical-lr;
+  direction: rtl;
+  width: 24px;
+  height: 110px;
+  accent-color: #a7c8d8;
+  cursor: pointer;
+}
+
+#volume-value {
+  font-size: 11px;
+  color: #6a9aaa;
+  font-variant-numeric: tabular-nums;
+}
+
+/* ON 状態のアイコンは暗いトーンで強調 */
+#volume-toggle.active { color: #3a8060; }
+
+/* ── スクロール速度コントロール（音量コントロールと同じ作り）──── */
+#speed-control {
+  position: relative;
+  display: flex;
+  align-items: center;
+}
+
+#speed-popup {
+  position: absolute;
+  bottom: calc(100% + 8px);
+  right: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  padding: 14px 10px;
+  background: #f4fbfa;
+  border: 1px solid #b7dde6;
+  border-radius: 8px;
+  box-shadow: 0 6px 20px rgba(100, 170, 190, 0.18);
+}
+
+#speed-popup.hidden {
+  display: none;
+}
+
+#speed-slider {
+  writing-mode: vertical-lr;
+  direction: rtl;
+  width: 24px;
+  height: 110px;
+  accent-color: #a7c8d8;
+  cursor: pointer;
+}
+
+#speed-value {
+  font-size: 11px;
+  color: #6a9aaa;
+  font-variant-numeric: tabular-nums;
+}
+
+#speed-toggle.active { color: #3a8060; }
+
+/* ── ピアノロールエリア ──────────────────────────── */
+#piano-roll-wrap {
+  flex: 1;
+  position: relative;
+  overflow: hidden;
+  /* 長押し・ドラッグでテキスト選択にならないようにする */
+  user-select: none;
+  -webkit-user-select: none;
+  -webkit-touch-callout: none; /* iOS の長押しメニューを抑制 */
+}
+
+#piano-roll {
+  width: 100%;
+  height: 100%;
+  display: block;
+  touch-action: none;
+  user-select: none;
+  -webkit-user-select: none;
+  -webkit-touch-callout: none;
+}
+
+
+/* ── VUメーター（ツールバー内のミニLED表示）──────────── */
+/* 中身は canvas に描画．実解像度は JS が設定するのでここでは見た目だけ指定 */
+#vu-meter {
+  display: block;
+  width: 64px;
+  height: 24px;
+  border-radius: 3px;
+  background: #ffffff;
+  box-shadow: inset 0 0 0 1px #b7dde6;
+  flex-shrink: 0;
+  margin-left: auto;            /* ここから後ろを右端へ寄せる */
+}
+
+/* ── ローディングオーバーレイ ──────────────────────── */
+#loading-overlay {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  background: rgba(207, 239, 241, 0.88);
+  gap: 16px;
+  z-index: 10;
+}
+
+.loading-text {
+  color: #5a8898;
+  font-size: 13px;
+  letter-spacing: 0.8px;
+}
+
+.loading-spinner {
+  width: 32px;
+  height: 32px;
+  border: 2px solid #b7dde6;
+  border-top-color: #a7c8d8;
+  border-radius: 50%;
+  animation: spin 0.8s linear infinite;
+}
+
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+
+/* ── 汎用ボタン ────────────────────── */
+button {
+  background: #f4fbfa;
+  color: #1e3a48;
+  border: 1px solid #b7dde6;
+  border-radius: 6px;
+  padding: 6px 14px;
+  font-size: 13px;
+  cursor: pointer;
+  transition: background 0.15s, border-color 0.15s, color 0.15s;
+  white-space: nowrap;
+}
+
+button:hover:not(:disabled) {
+  background: #cfeff1;
+  border-color: #a7c8d8;
+}
+
+button:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+/* ── スタート画面（曲選択）──────────── */
+#start-screen {
+  position: fixed;
+  inset: 0;
+  z-index: 100;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  /* ピアノロール調の背景．上から順に重ねる：
+       左上のティール光／縦の小節線／横の段線／下地 */
+  background:
+    radial-gradient(circle at 14% 18%, rgba(57, 197, 187, 0.16), transparent 45%),
+    repeating-linear-gradient(90deg,
+      transparent 0, transparent 119px,
+      rgba(120, 170, 190, 0.16) 119px, rgba(120, 170, 190, 0.16) 120px),
+    repeating-linear-gradient(0deg,
+      transparent 0, transparent 55px,
+      rgba(120, 170, 190, 0.10) 55px, rgba(120, 170, 190, 0.10) 56px),
+    #eef7f5;
+  overflow-x: hidden;
+}
+
+#start-screen.hidden {
+  display: none;
+}
+
+/* ── 背景装飾（pointer-events:none で飾りに徹する）── */
+.start-decor {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  pointer-events: none;
+}
+
+/* ピアノロールのノートに見立てた角丸ブロック．色は6キャラの段カラー */
+.deco-note {
+  position: absolute;
+  height: 22px;
+  border-radius: 5px;
+  opacity: 0.5;
+}
+
+/* 各ノートの位置・幅・色を個別指定 */
+.deco-note.n1 { top: 15%;    left: 6%;   width: 88px;  background: #0F4C81; } /* KAITO */
+.deco-note.n2 { top: 29%;    right: 9%;  width: 64px;  background: #F0D038; } /* レン  */
+.deco-note.n3 { top: 58%;    left: 5%;   width: 104px; background: #39C5BB; } /* ミク  */
+.deco-note.n4 { bottom: 16%; left: 17%;  width: 72px;  background: #F9A906; } /* リン  */
+.deco-note.n5 { top: 21%;    right: 19%; width: 56px;  background: #F07199; } /* ルカ  */
+.deco-note.n6 { bottom: 23%; right: 8%;  width: 96px;  background: #E44A4A; } /* MEIKO */
+.deco-note.n7 { bottom: 9%;  right: 26%; width: 60px;  background: #39C5BB; } /* ミク  */
+
+.start-panel {
+  width: min(560px, 90vw);
+  max-height: 80vh;
+  overflow-y: auto;
+  text-align: center;
+  /* DAW のウィンドウ風カード：半透明の白地・角丸・浮き上がる影 */
+  position: relative;            /* 背景装飾より前面に出すため */
+  z-index: 1;
+  background: rgba(255, 255, 255, 0.88);
+  border: 1px solid #b7dde6;
+  border-radius: 14px;
+  padding: 26px 26px 22px;
+  box-shadow: 0 18px 50px rgba(15, 60, 75, 0.16);
+}
+
+/* タイトル行：タイトルを中央に固定し「操作方法」ボタンを絶対配置で右に重ねる */
+.start-header {
+  position: relative;          /* 中のボタンを絶対配置する基準 */
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+/* タイトル：ロゴ・マーク（左）とワードマーク（右）を中央に横並びにする */
+.start-title {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 14px;
+}
+
+/* 左のロゴ・マーク（文字なしSVG）*/
+.start-logo-mark {
+  height: clamp(48px, 11vw, 68px);
+  width: auto;
+  flex: none;
+}
+
+/* ワードマーク「Lyric / Roll」を2段に積む */
+.start-wordmark {
+  display: flex;
+  flex-direction: column;
+  line-height: 0.95;
+  text-align: left;
+  font-family: 'M PLUS Rounded 1c', 'Hiragino Maru Gothic ProN',
+               'Segoe UI', 'Yu Gothic', 'Meiryo', system-ui, sans-serif;
+  font-weight: 700;
+  letter-spacing: 1px;
+  font-size: clamp(28px, 6.5vw, 46px);
+  /* 淡い色でも輪郭が出るようフチを文字の下に敷く */
+  paint-order: stroke fill;
+  text-shadow: 0 2px 4px rgba(0, 0, 0, 0.28);
+}
+
+/* Lyric=向日葵 / Roll=ティール（ロゴの配色）*/
+.wordmark-lyric {
+  color: #FFE08A;
+  -webkit-text-stroke: 1px #E9C25C;
+}
+.wordmark-roll {
+  color: #86DDD4;
+  -webkit-text-stroke: 1px #5FC3B8;
+}
+
+/* 「操作方法」ボタン：タイトル行の右端に絶対配置で縦中央に重ねる */
+.help-button {
+  position: absolute;
+  right: 0;
+  top: 50%;
+  transform: translateY(-50%);
+  padding: 8px 16px;
+  font-size: 15px;
+  font-weight: 700;
+  letter-spacing: 1px;
+  color: #ffffff;
+  background: #6fb191;
+  border: none;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: background 0.15s, transform 0.1s;
+}
+
+.help-button:hover  { background: #5fa081; }
+/* 押し込み表現．縦中央揃えを保ったまま1px下げる */
+.help-button:active { transform: translateY(calc(-50% + 1px)); }
+
+/* ── 操作方法ポップアップ（モーダル）──────────────────────── */
+/* 画面全体を覆い中身を中央に置く（z-index はスタート画面より上）*/
+.help-modal {
+  position: fixed;
+  inset: 0;
+  z-index: 200;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.help-modal.hidden {
+  display: none;
+}
+
+/* 背景の半透明の暗幕（クリックで閉じる）*/
+.help-modal-backdrop {
+  position: absolute;
+  inset: 0;
+  background: rgba(15, 40, 50, 0.45);
+}
+
+/* ポップアップ本体（白いカード）*/
+.help-modal-content {
+  position: relative;          /* 中の×ボタンを絶対配置する基準 */
+  width: min(520px, 90vw);
+  max-height: 85vh;
+  overflow-y: auto;
+  background: #ffffff;
+  border: 1px solid #b7dde6;
+  border-radius: 10px;
+  padding: 28px 28px 24px;
+  box-shadow: 0 12px 40px rgba(15, 40, 50, 0.25);
+}
+
+/* 右上の閉じる（×）ボタン */
+.help-close {
+  position: absolute;
+  top: 10px;
+  right: 14px;
+  width: 32px;
+  height: 32px;
+  font-size: 24px;
+  line-height: 1;
+  color: #6a9aaa;
+  background: transparent;
+  border: none;
+  cursor: pointer;
+}
+
+.help-close:hover {
+  color: #1e3a48;
+}
+
+.help-modal-title {
+  margin: 0 0 16px;
+  font-size: 22px;
+  font-weight: 700;
+  letter-spacing: 2px;
+  color: #1e3a48;
+  text-align: center;
+}
+
+.help-modal-body {
+  font-size: 14px;
+  line-height: 1.7;
+  color: #2c4a57;
+  text-align: left;
+}
+
+.help-modal-body h3 {
+  margin: 16px 0 4px;
+  font-size: 15px;
+  color: #3a8060;
+}
+
+/* 冒頭のアプリ概要文（下に区切り線を引いて操作説明と分ける）*/
+.help-modal-body .help-intro {
+  font-size: 17px;
+  line-height: 1.75;
+  color: #1e3a48;
+  margin: 4px 0 18px;
+  padding-bottom: 14px;
+  border-bottom: 1px solid #e0eef0;
+}
+
+.help-modal-body ul {
+  margin: 0;
+  padding-left: 20px;
+}
+
+.help-modal-body li {
+  margin-bottom: 6px;
+}
+
+.help-modal-body strong {
+  color: #1e3a48;
+}
+
+/* クレジット表記（上に区切り線を引いて分ける）*/
+.help-modal-body .help-credits {
+  margin: 18px 0 0;
+  padding-top: 14px;
+  border-top: 1px solid #e0eef0;
+  font-size: 12px;
+  line-height: 1.6;
+  color: #6a808a;
+}
+
+.help-modal-body .help-credits a {
+  color: #3a8060;
+}
+
+.start-subtitle {
+  font-size: 12px;
+  letter-spacing: 2px;
+  color: #3a8f88;
+  margin: 10px 0 16px;
+  /* 文字の左右に短い飾り線を添える */
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+}
+
+/* 文字の前後に短い線を生やす */
+.start-subtitle::before,
+.start-subtitle::after {
+  content: "";
+  width: 32px;
+  height: 1px;
+  background: #9acdc8;
+}
+
+#start-song-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+/* 各曲カード：ピアノロールのノートに見立てる（左端に段カラーの帯）*/
+.start-song-card {
+  position: relative;          /* 左の帯(::before)・▶(::after)の基準 */
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 1px;
+  padding: 9px 34px 9px 22px;  /* 左=帯ぶん 右=▶ぶんの余白 */
+  background: #ffffff;
+  border: 1px solid #b7dde6;
+  border-radius: 8px;
+  overflow: hidden;            /* 左の帯を角丸からはみ出させない */
+  cursor: pointer;
+  transition: background 0.15s, border-color 0.15s,
+              transform 0.15s, box-shadow 0.15s;
+  text-align: left;
+}
+
+/* 左端の段カラー帯（色は下の nth-child でカードごとに変える）*/
+.start-song-card::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  top: 0;
+  bottom: 0;
+  width: 6px;
+  background: #39C5BB;         /* 既定色（nth-child で上書き）*/
+}
+
+/* キャラクターの段カラーを6色で循環させる（ピアノロール本体と同じ並び）*/
+.start-song-card:nth-child(6n + 1)::before { background: #0F4C81; } /* KAITO  */
+.start-song-card:nth-child(6n + 2)::before { background: #F0D038; } /* レン   */
+.start-song-card:nth-child(6n + 3)::before { background: #39C5BB; } /* ミク   */
+.start-song-card:nth-child(6n + 4)::before { background: #F9A906; } /* リン   */
+.start-song-card:nth-child(6n + 5)::before { background: #F07199; } /* ルカ   */
+.start-song-card:nth-child(6n)::before     { background: #E44A4A; } /* MEIKO  */
+
+/* 右端の再生マーク（普段は隠しホバー時に出す）*/
+.start-song-card::after {
+  content: "▶";
+  position: absolute;
+  right: 14px;
+  top: 50%;
+  transform: translateY(-50%) scale(0.7);
+  color: #39C5BB;
+  font-size: 13px;
+  opacity: 0;
+  transition: opacity 0.15s, transform 0.15s;
+}
+
+.start-song-card:hover {
+  background: #eaf7f8;
+  border-color: #9acab0;
+  transform: translateX(4px);
+  box-shadow: 0 6px 18px rgba(15, 60, 75, 0.14);
+}
+
+.start-song-card:hover::after {
+  opacity: 1;
+  transform: translateY(-50%) scale(1);
+}
+
+/* 現在選択中の曲のカード */
+.start-song-card.active {
+  background: rgba(191, 227, 200, 0.30);
+  border-color: #9acab0;
+}
+
+/* 選択中のカードは▶を常時表示する */
+.start-song-card.active::after {
+  opacity: 1;
+  transform: translateY(-50%) scale(1);
+}
+
+.card-title {
+  font-size: 15px;
+  font-weight: 600;
+  color: #1e3a48;
+}
+
+.card-artist {
+  font-size: 11px;
+  color: #6a9aaa;
+}
+
+/* モード切替ボタン（#toolbar button に競り勝たせるため #toolbar を前置）*/
+#toolbar #auto-toggle {
+  /* 余白・文字は画面横幅に応じて拡縮 */
+  padding: clamp(8px, 1.0vw, 14px) clamp(12px, 1.6vw, 22px);
+  background: #f4fbfa;
+  border: 1px solid #b7dde6;
+  border-radius: 0;
+  color: #4a6470;
+  font-size: clamp(12px, 1.1vw, 16px);
+  font-weight: bold;
+  letter-spacing: 1px;
+  white-space: nowrap;       /* 「モード：タッチ」を折り返さない */
+  flex-shrink: 0;
+  cursor: pointer;
+  transition: background 0.15s, color 0.15s, border-color 0.15s;
+}
+
+/* AUTO モードのとき：グリーン系でくっきり色分けする */
+#toolbar #auto-toggle.active {
+  background: #bfe3c8;
+  border-color: #7fb795;
+  color: #1e6a47;
+}
+
+/* ── 横向きを促す案内オーバーレイ（既定は非表示．下のメディアクエリで表示）── */
+#rotate-prompt {
+  display: none;
+  position: fixed;
+  inset: 0;
+  z-index: 9999;
+  background: #f4fbfa;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 14px;
+  text-align: center;
+  padding: 24px;
+}
+/* スマホ絵文字を横倒しにして「横向きにして」を示す */
+.rotate-icon {
+  font-size: 56px;
+  line-height: 1;
+  display: inline-block;
+  transform: rotate(90deg);
+}
+.rotate-text { font-size: 18px; font-weight: 700; color: #1e3a48; }
+.rotate-sub  { font-size: 13px; color: #6a9aaa; }
+
+/* スマホ向けレイアウト．
+   タッチ端末（pointer: coarse）かつ小画面のときだけスマホ扱いにする
+   （max-width: 600px＝縦で狭い／max-height: 500px＝横で低い．iPad は対象外）．
+   再生バー / BPM / 小節 は JS でヘッダーへ移動済みなのでここで見た目を整える */
+@media (pointer: coarse) and (max-width: 600px),
+       (pointer: coarse) and (max-height: 500px) {
+
+  /* ── 上部ヘッダーへ移動した 再生バー / BPM / 小節 ── */
+  #header { gap: 8px; height: auto; min-height: 40px; }
+  #header #seek {
+    flex: 0 1 150px;
+    width: auto;
+    min-width: 70px;
+  }
+  #header #transport-readout { flex-shrink: 0; }
+  #header .readout-cell  { padding: 3px 8px; }
+  #header .readout-value { font-size: 12px; }
+  #header .readout-label { font-size: 12px; }
+
+  /* ── 下部バー：1行に収める ── */
+  #toolbar {
+    height: auto;
+    padding: 6px 10px;
+    gap: 6px;
+    flex-wrap: wrap;
+    justify-content: space-between;
+  }
+  .toolbar-left,
+  .toolbar-center,
+  .toolbar-right {
+    flex: 0 1 auto;
+    min-width: 0;
+    gap: 6px;
+  }
+  .toolbar-left { padding-right: 0; }
+
+  /* 再生ボタン・モードトグル・ツールボタンを小さくして高さを抑える */
+  #transport-controls .transport-btn { padding: 7px 16px; }
+  #transport-controls .transport-btn svg { width: 24px; height: 24px; }
+  #toolbar #auto-toggle { padding: 8px 12px; font-size: 13px; }
+  #toolbar button { padding: 7px; }
+
+  /* スマホでは JS が VUメーターを中央へ移すので右寄せの押し出しを解除する */
+  #vu-meter { margin-left: 0; }
+
+  /* 再生ボタン群と直後の VUメーターの間隔を詰める */
+  .toolbar-center { gap: 10px; }
+}
+
+/* スマホを縦向きで開いたときだけ横向きを促す案内を表示 */
+@media (pointer: coarse) and (orientation: portrait) and (max-width: 600px) {
+  #rotate-prompt { display: flex; }
+}
+
+/* 曲を最後まで再生し終えたときのポップアップ（#end-screen）．
+   画面全体を覆って背後のボタンを無効化しフェードインで現れる */
+#end-screen {
+  position: fixed;
+  inset: 0;
+  z-index: 300;             /* スタート画面(100)・ヘルプ(200)より上に重ねる */
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+#end-screen.hidden {
+  display: none;
+}
+
+/* 半透明の暗幕（背後のボタンを無効化しピアノロールをぼかす）*/
+.end-backdrop {
+  position: absolute;
+  inset: 0;
+  background: rgba(15, 40, 50, 0.32);
+  backdrop-filter: blur(2px);
+}
+
+/* 中央のメッセージ＋ボタンのまとまり（暗幕より前面に出すため relative）*/
+.end-content {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 22px;
+  width: min(440px, 90vw);
+  padding: 30px 28px;
+  text-align: center;
+  background: #ffffff;
+  border: 1px solid #cfeff1;
+  border-radius: 16px;
+  box-shadow: 0 12px 40px rgba(15, 40, 50, 0.18);
+  animation: endFadeIn 0.5s ease both;
+}
+
+/* 大きなメッセージ（画面幅に応じて clamp で拡大縮小）*/
+.end-message {
+  margin: 0;
+  font-size: clamp(22px, 4vw, 30px);
+  font-weight: 700;
+  letter-spacing: 1px;
+  color: #1e3a48;
+}
+
+/* 2つの選択肢ボタンの並び（狭い画面では縦に折り返す）*/
+.end-actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 14px;
+}
+
+.end-btn {
+  padding: 10px 18px;
+  font-size: 15px;
+  font-weight: 700;
+  letter-spacing: 0.5px;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: background 0.15s, transform 0.1s;
+}
+
+/* 「もう一度再生する」（白地・無装飾）*/
+.end-btn-main {
+  color: #1e3a48;
+  background: #ffffff;
+  border: 1px solid #a7c8d8;
+}
+.end-btn-main:hover  { background: #eaf7f8; }
+.end-btn-main:active { transform: translateY(1px); }
+
+/* 「プロジェクト選択に戻る」（白地・無装飾）*/
+.end-btn-sub {
+  color: #1e3a48;
+  background: #ffffff;
+  border: 1px solid #a7c8d8;
+}
+.end-btn-sub:hover  { background: #eaf7f8; }
+.end-btn-sub:active { transform: translateY(1px); }
+
+/* フェードイン：透明＋少し下 → 不透明＋定位置 */
+@keyframes endFadeIn {
+  from { opacity: 0; transform: translateY(16px); }
+  to   { opacity: 1; transform: translateY(0); }
+}

@@ -1,0 +1,216 @@
+<!DOCTYPE html>
+<html lang="ja" class="app-loading">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <!-- Web フォント：日本語UI = M PLUS Rounded 1c，数値表示 = Share Tech Mono -->
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=M+PLUS+Rounded+1c:wght@400;500;700&family=Share+Tech+Mono&display=swap" rel="stylesheet" />
+    <!-- FOUC 防止．読み込み中は中身を隠し，main.js が CSS 読込後に表示する -->
+    <style>
+      html.app-loading      { background: #f4fbfa; }
+      html.app-loading body { visibility: hidden; }
+    </style>
+    <title>Lyric Roll</title>
+  </head>
+  <body>
+    <!-- 横向き推奨の案内（タッチ端末の縦向き時だけ表示）-->
+    <div id="rotate-prompt">
+      <div class="rotate-icon">📱</div>
+      <p class="rotate-text">画面を横向きにしてください</p>
+      <p class="rotate-sub">Please turn your phone sideways</p>
+    </div>
+
+    <!-- スタート画面（曲を選ぶとメイン画面へ進む）-->
+    <div id="start-screen">
+      <!-- 背景装飾：キャラ色のノートブロック（aria-hidden で読み上げ対象から除外）-->
+      <div class="start-decor" aria-hidden="true">
+        <span class="deco-note n1"></span>
+        <span class="deco-note n2"></span>
+        <span class="deco-note n3"></span>
+        <span class="deco-note n4"></span>
+        <span class="deco-note n5"></span>
+        <span class="deco-note n6"></span>
+        <span class="deco-note n7"></span>
+      </div>
+
+      <div class="start-panel">
+        <div class="start-header">
+          <!-- タイトル（ロゴ・マーク＋ワードマーク）-->
+          <h1 class="start-title" aria-label="Lyric Roll">
+            <img class="start-logo-mark" src="/logo-mark.svg" alt="" aria-hidden="true" />
+            <span class="start-wordmark" aria-hidden="true">
+              <span class="wordmark-lyric">Lyric</span>
+              <span class="wordmark-roll">Roll</span>
+            </span>
+          </h1>
+          <button id="help-button" class="help-button" type="button">操作方法</button>
+        </div>
+        <p class="start-subtitle">プロジェクト を選択</p>
+        <!-- songs.js の曲数ぶんカードが main.js で自動生成される -->
+        <div id="start-song-list"></div>
+      </div>
+    </div>
+
+    <!-- 操作方法ポップアップ（初回アクセス時に自動で開く）-->
+    <div id="help-modal" class="help-modal hidden">
+      <!-- 背景の暗い部分（クリックで閉じる）-->
+      <div id="help-backdrop" class="help-modal-backdrop"></div>
+
+      <div class="help-modal-content" role="dialog" aria-modal="true" aria-labelledby="help-modal-title">
+        <button id="help-close" class="help-close" type="button" title="閉じる" aria-label="閉じる">×</button>
+        <h2 id="help-modal-title" class="help-modal-title">操作方法</h2>
+
+        <div class="help-modal-body">
+          <p class="help-intro"><strong>Lyric Roll</strong>はDAW上のピアノロール画面とTextAliveを組み合わせたリリックアプリです。タッチやマウスで操作しながら、音楽と歌詞を視覚的に楽しめます。</p>
+          <h3>① 曲（プロジェクト）を選ぶ</h3>
+          <ul>
+            <li>プロジェクト一覧から気になる曲を選びましょう。</li>
+          </ul>
+
+          <h3>② 再生する</h3>
+          <ul>
+            <li> <strong>□ 停止</strong> / <strong>▷ 再生</strong> / <strong>❚❚ 一時停止</strong>で曲を操作します。</li>
+          </ul>
+
+          <h3>③ 歌詞を動かしてみる</h3>
+          <ul>
+            <li>左下の<strong>モード切替ボタン</strong>を押すと、<strong>AUTO</strong>と<strong>タッチ</strong>を切り替えられます。</li>
+            <li><strong>モード：タッチ</strong>のとき、画面を<strong>タップ／なぞる</strong>と、歌詞ノートが流れる段を単語ごとに自分で選べます。</li>
+            <li> <strong>モード：AUTO</strong>のとき、ランダムに歌詞ノートが流れます。このとき、タッチ操作はオフになります。</li>
+            <li>DAWやボーカロイドエディタのような演出をお楽しみください！</li>
+          </ul>
+
+          <h3>④ その他</h3>
+          <ul>
+            <li><strong>スクロール速度</strong>：速度メーターアイコンから調整できます。</li>
+            <li><strong>音量</strong>：スピーカーアイコンから調整できます。</li>
+            <li><strong>戻る</strong>：上部にあるボタンでここに戻れます。</li>
+            <li>(PCのみ) <strong>スペースキー</strong>で再生/一時停止、<strong>Mキー</strong>でモード切替ができます。</li>
+          </ul>
+
+          <!-- クレジット表記 -->
+          <p class="help-credits">
+            このアプリは
+            <a href="https://developer.textalive.jp/" target="_blank" rel="noopener">TextAlive App API</a>
+            を利用しています。
+          </p>
+        </div>
+      </div>
+    </div>
+
+    <!-- 再生し終えたときのポップアップ（背後の操作をブロック）-->
+    <div id="end-screen" class="hidden">
+      <!-- 背景の半透明の暗幕 -->
+      <div class="end-backdrop"></div>
+
+      <div class="end-content">
+        <p class="end-message">Thank you for playing!</p>
+        <div class="end-actions">
+          <button id="end-back" class="end-btn end-btn-sub" type="button">プロジェクト選択に戻る</button>
+          <button id="end-replay" class="end-btn end-btn-main" type="button">もう一度再生する</button>
+        </div>
+      </div>
+    </div>
+
+    <div id="app">
+      <!-- 上部バー：曲情報 -->
+      <header id="header">
+        <!-- 曲名＋作者を1行表示（足りなければ作者から省略）-->
+        <div id="song-info">
+          <span id="song-title">読み込み中...</span><span id="song-artist"></span>
+        </div>
+        <button id="back-to-songs" title="プロジェクト選択に戻る">← 戻る</button>
+      </header>
+
+      <div id="piano-roll-wrap">
+        <canvas id="piano-roll"></canvas>
+        <div id="loading-overlay">
+          <div class="loading-spinner"></div>
+          <div class="loading-text">楽曲データ読み込み中...</div>
+        </div>
+      </div>
+
+      <!-- 下部ツールバー：再生バー・モード（左）／再生操作（中央）／計器・ツール（右） -->
+      <footer id="toolbar">
+        <div class="toolbar-left">
+          <!-- 再生バー（進捗表示のみ） -->
+          <div id="seek">
+            <span id="seek-time" class="seek-time">0:00</span>
+            <div id="seek-bar">
+              <div id="seek-fill"></div>
+            </div>
+            <span id="seek-dur" class="seek-time">0:00</span>
+          </div>
+
+          <!-- モード切替トグル（AUTO＝自動 / タッチ＝自分で段を指定）-->
+          <button id="auto-toggle" title="クリックで自動／タッチ操作を切り替え">モード：タッチ</button>
+        </div>
+
+        <!-- 中央：再生ボタン群 -->
+        <div class="toolbar-center">
+          <!-- DAW 風トランスポート：停止／再生／一時停止 -->
+          <div id="transport-controls">
+            <!-- 停止：先頭（0:00）に戻して止める -->
+            <button id="stop" class="transport-btn" title="停止（先頭に戻る）">
+              <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><rect x="6" y="6" width="12" height="12" rx="2"/></svg>
+            </button>
+            <!-- 再生：読み込み中はスピナー，可能になると main.js が▶へ差し替える -->
+            <button id="play" class="transport-btn is-play" disabled title="再生">
+              <svg class="spin" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M21 12a9 9 0 1 1-6.219-8.56"/></svg>
+            </button>
+            <!-- 一時停止：今の位置で止める -->
+            <button id="pause" class="transport-btn" title="一時停止">
+              <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><rect x="6" y="5" width="4" height="14" rx="1"/><rect x="14" y="5" width="4" height="14" rx="1"/></svg>
+            </button>
+          </div>
+        </div>
+
+        <div class="toolbar-right">
+          <!-- BPM / 小節 / コード 表示 -->
+          <div id="transport-readout">
+            <div class="readout-cell">
+              <span class="readout-label">♪</span>
+              <span id="bpm-value" class="readout-value">—</span>
+            </div>
+            <div class="readout-cell">
+              <span id="time" class="readout-value">001 : 1</span>
+            </div>
+            <!-- 今鳴っているコード名 -->
+            <div class="readout-cell">
+              <span id="chord-value" class="readout-value readout-chord" title="コード">-</span>
+            </div>
+          </div>
+
+          <!-- VUメーター（装飾．実際の周波数解析ではない）-->
+          <canvas id="vu-meter" title="ボーカルレベル"></canvas>
+
+          <!-- スクロール速度コントロール（値/100 = 速度倍率）-->
+          <div id="speed-control">
+            <button id="speed-toggle" title="スクロール速度">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 18a9 9 0 0 1 18 0"/><circle cx="12" cy="14" r="2"/><path d="m13.4 12.6 4.1-4.1"/></svg>
+            </button>
+            <div id="speed-popup" class="hidden">
+              <input id="speed-slider" type="range" min="50" max="200" step="5" value="100" />
+              <span id="speed-value">×1.0</span>
+            </div>
+          </div>
+
+          <!-- 音量コントロール -->
+          <div id="volume-control">
+            <button id="volume-toggle" title="音量">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/><path d="M15.54 8.46a5 5 0 0 1 0 7.07"/><path d="M19.07 4.93a10 10 0 0 1 0 14.14"/></svg>
+            </button>
+            <div id="volume-popup" class="hidden">
+              <input id="volume-slider" type="range" min="0" max="100" value="100" />
+              <span id="volume-value">100</span>
+            </div>
+          </div>
+        </div>
+      </footer>
+    </div>
+    <script type="module" src="/src/main.js"></script>
+  </body>
+</html>

@@ -1,0 +1,133 @@
+<!DOCTYPE html>
+<html lang="ja">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Lyric Roll ロゴ プレビュー</title>
+
+    <!-- フォント読み込み（Google Fonts）。
+         ・M PLUS Rounded 1c = 本体UIと同じ丸ゴシック（見出し用）
+         ・Fredoka          = ロゴの英字に使う丸み系ディスプレイフォント。
+                              本体の丸ゴシックと相性がよく、味気なさを解消する。 -->
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=M+PLUS+Rounded+1c:wght@400;500;700&family=Fredoka:wght@500;600;700&display=swap" rel="stylesheet" />
+
+    <style>
+      /* ── このファイルは「ロゴだけを確認・調整する」ための実験場です。 ──
+         アプリ本体（index.html / src/style.css）には一切影響しません。
+         調整が固まったら、<svg> の中身を本体へ移植します。 */
+
+      * { box-sizing: border-box; margin: 0; padding: 0; }
+
+      body {
+        min-height: 100vh;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        gap: 40px;
+        padding: 48px 16px;
+        /* 本体スタート画面と近い背景色（ほぼ白のシーグラス）。
+           ここを変えると、別の背景でロゴがどう見えるか試せます。 */
+        background: #f4fbfa;
+        color: #1e3a48;
+        font-family: 'M PLUS Rounded 1c', 'Hiragino Maru Gothic ProN',
+                     'Segoe UI', 'Yu Gothic', 'Meiryo', system-ui, sans-serif;
+      }
+
+      h2 {
+        font-size: 14px;
+        font-weight: 500;
+        color: #6a9aaa;
+        letter-spacing: 2px;
+      }
+
+      /* ロゴ本体。画面幅に応じて伸縮し、縦横比は viewBox が保つ。
+         width の値を変えるとロゴ全体の表示サイズを調整できます。 */
+      .logo-svg {
+        width: min(380px, 80vw);
+        height: auto;
+        display: block;
+      }
+
+    </style>
+  </head>
+
+  <body>
+    <h2>Lyric Roll ロゴ プレビュー（調整用・本体には未反映）</h2>
+
+    <!-- ============================================================
+         ↓↓↓ ここが調整対象のロゴ SVG です ↓↓↓
+         viewBox="0 0 360 124" の中に座標で図形を描いています。
+
+         主な調整ポイント：
+         ・ノートの色 …… <rect> の fill / stroke
+         ・文字 …… <text> の中身・font-size・letter-spacing
+         ・ノートの位置/大きさ …… <rect> の x y width height（x=左, y=上）
+         ・2段の区切り位置 …… ④ の横線 y 座標（今は 62）
+         ============================================================ -->
+    <svg class="logo-svg" viewBox="0 0 360 124" role="img"
+         xmlns="http://www.w3.org/2000/svg">
+      <title>Lyric Roll</title>
+
+      <!-- ⓪ 定義置き場：色のグラデーションと影。ここで作った設定を
+           下のノートから id 名（url(#...)）で呼び出して使う。 -->
+      <defs>
+        <!-- ティールのグラデ（左上→右下で少し濃くする＝立体感） -->
+        <linearGradient id="tealGrad" x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0"  stop-color="#4FD6CC"/>
+          <stop offset="1"  stop-color="#2FB3A8"/>
+        </linearGradient>
+        <!-- 向日葵イエローのグラデ -->
+        <linearGradient id="sunGrad" x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0"  stop-color="#FFD64A"/>
+          <stop offset="1"  stop-color="#F8BE12"/>
+        </linearGradient>
+        <!-- ノートの下に落とすやわらかい影 -->
+        <filter id="noteShadow" x="-20%" y="-20%" width="140%" height="160%">
+          <feDropShadow dx="0" dy="2.5" stdDeviation="2.5"
+                        flood-color="#0e3a48" flood-opacity="0.28"/>
+        </filter>
+      </defs>
+
+      <!-- ① ピアノロールの土台（シーグラス色の角丸パネル） -->
+      <rect x="4" y="6" width="352" height="112" rx="10"
+            fill="#cfeff1" stroke="#82b4c8" stroke-width="1.5"/>
+
+      <!-- ② 左の鍵盤パネル（DAW のピアノロール左端の鍵盤エリア風） -->
+      <rect x="4" y="6" width="26" height="112" rx="10" fill="#b7dde6"/>
+      <rect x="22" y="6" width="8" height="112" fill="#b7dde6"/>
+
+      <!-- ③ 縦の拍線（薄い線＝拍、濃い線＝小節） -->
+      <line x1="86"  y1="6" x2="86"  y2="118" stroke="#a7c8d8" stroke-width="1"/>
+      <line x1="142" y1="6" x2="142" y2="118" stroke="#a7c8d8" stroke-width="1"/>
+      <line x1="198" y1="6" x2="198" y2="118" stroke="#82b4c8" stroke-width="1.5"/>
+      <line x1="254" y1="6" x2="254" y2="118" stroke="#a7c8d8" stroke-width="1"/>
+      <line x1="310" y1="6" x2="310" y2="118" stroke="#a7c8d8" stroke-width="1"/>
+
+      <!-- ④ 2段に分ける横の区切り線 -->
+      <line x1="4" y1="62" x2="356" y2="62" stroke="#82b4c8" stroke-width="1.5"/>
+
+      <!-- ⑤ 上段のMIDIノート（左寄り）：「Lyric」＝ミクのティール -->
+      <rect x="40" y="20" width="150" height="34" rx="9"
+            fill="url(#tealGrad)" stroke="#2aa39b" stroke-width="1.5"
+            filter="url(#noteShadow)"/>
+      <text x="115" y="38"
+            text-anchor="middle" dominant-baseline="central"
+            font-family="'Fredoka','M PLUS Rounded 1c',sans-serif"
+            font-size="23" font-weight="600" letter-spacing="0.5" fill="#ffffff">Lyric</text>
+
+      <!-- ⑥ 下段のMIDIノート（右寄り）：「Roll」＝向日葵イエロー。
+           黄色は白背景・白文字だと見えにくいので、文字は濃紺にしてコントラストを確保 -->
+      <rect x="196" y="70" width="140" height="34" rx="9"
+            fill="url(#sunGrad)" stroke="#E0A400" stroke-width="1.5"
+            filter="url(#noteShadow)"/>
+      <text x="266" y="88"
+            text-anchor="middle" dominant-baseline="central"
+            font-family="'Fredoka','M PLUS Rounded 1c',sans-serif"
+            font-size="23" font-weight="600" letter-spacing="0.5" fill="#173a4a">Roll</text>
+    </svg>
+    <!-- ↑↑↑ ここまでがロゴ SVG ↑↑↑ -->
+
+  </body>
+</html>

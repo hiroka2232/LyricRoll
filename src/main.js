@@ -218,14 +218,14 @@ function loadSong(idx) {
 }
 
 // ── BPM 表示 ─────────────────────────────────────────────
-// BPM は曲ごとの固定値（songs.js の bpm）．bpmHalves のある曲は，再生位置 t が区間内のとき
+// BPM は曲ごとの固定値（songs.js の bpm）．bpmChanges のある曲は，再生位置 t が区間内のとき
 // その区間の BPM を返す．
 let lastBpmShown = null; // 直前に表示した BPM（同じ値の DOM 書き込みを避けるため保持）
 
 // 再生位置 t(ms) における BPM を返す（テンポ変更区間内ならその値，それ以外は曲の基準 bpm）
 function bpmAtTime(t) {
   const song = SONGS[currentSongIdx];
-  for (const change of song.bpmHalves ?? []) {
+  for (const change of song.bpmChanges ?? []) {
     if (t >= change.from && t < change.to) return change.bpm;
   }
   return song.bpm;
@@ -1036,8 +1036,13 @@ function commitRows() {
     // 段が変わるのは単語の先頭だけ（単語内の文字は同じ段を引き継ぐ）
     if (n.wordStart && state.commitIdx > 0) {
       const userActive = state.userRow !== null && state.curTime <= state.userRowUntil;
-      state.walkRow = userActive ? state.userRow
-                                 : walkStep(state.walkRow, n);
+      // 直前のノートとほぼ同時（ブロック最低幅より近い）に始まる単語は段を変えない．
+      // 別の段に分かれると縦に重なって見え，ピッチカーブも段間を一瞬で往復してしまうため．
+      const prevStart  = items[state.commitIdx - 1].start;
+      const minGapMs   = LAYOUT.NOTE_MIN_W_PX / LAYOUT.PX_PER_MS;
+      const tooClose   = (n.start - prevStart) < minGapMs;
+      if (userActive)     state.walkRow = state.userRow;
+      else if (!tooClose) state.walkRow = walkStep(state.walkRow, n);
     }
     n.rowIdx = state.walkRow;
     state.commitIdx++;
@@ -1309,12 +1314,11 @@ function drawUserRow() {
   ctx.strokeRect(phX + 0.5, y + 0.5, viewW - phX - 1, state.rowH - 1);
 }
 
-// ノートブロックの描画幅(px)．発声時間が極端に短くても最低幅 NOTE_MIN_W_PX を確保しつつ，
-// 隣のノートに重ならないよう枠（次のノート開始までの幅 slotDur）を超えない範囲に収める．
+// ノートブロックの描画幅(px)．発声時間が短くても最低幅 NOTE_MIN_W_PX を必ず確保する．
+// 密集部では隣のノートと多少重なるが，細すぎて見えないノートをなくすことを優先している．
 function noteDrawWidth(n) {
-  const slotW = n.slotDur   * LAYOUT.PX_PER_MS; // 次のノート開始までの幅(px)
   const baseW = n.renderDur * LAYOUT.PX_PER_MS; // 発声時間に応じた本来の幅(px)
-  return Math.min(Math.max(baseW, LAYOUT.NOTE_MIN_W_PX), slotW);
+  return Math.max(baseW, LAYOUT.NOTE_MIN_W_PX);
 }
 
 // ノートブロックだけを描く（文字は drawNoteTexts で別に描く．

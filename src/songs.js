@@ -64,6 +64,15 @@ export const SONGS = [
     url:    'https://piapro.jp/t/zoqO/20251214200738',
     bpm:    70,
     scroll_spd: 0.60,
+    // 全体は BPM70．5区間だけ倍テンポ（BPM140）になる．各区間の境目は小節頭(pos=1)の
+    // ビート開始時刻[ms]（ビート間隔から BPM を推測して区間化した）．区間外は基準の 70．
+    bpmChanges: [
+      { from: 41242,  to: 68615,  bpm: 140 },
+      { from: 123556, to: 139023, bpm: 140 },
+      { from: 169802, to: 183551, bpm: 140 },
+      { from: 205852, to: 212749, bpm: 140 },
+      { from: 219556, to: 238439, bpm: 140 },
+    ],
   },
   {
     id:     'shutter-chance',
@@ -80,10 +89,9 @@ export const SONGS = [
     url:    'https://piapro.jp/t/B3yJ/20251215061727',
     bpm:    150,
     scroll_spd: 0.60,
-    // サビでテンポが半分（BPM75）になる区間[ms]
-    bpmHalves: [
-      { from: 67980,  to: 93555,  bpm: 75 }, 
-      { from: 154422, to: 167177, bpm: 75 }, 
+    bpmChanges: [
+      { from: 67980,  to: 93555,  bpm: 75 },
+      { from: 154422, to: 167177, bpm: 75 },
     ],
   },
   {
@@ -91,7 +99,7 @@ export const SONGS = [
     title:  'トリツクロジー',
     artist: '鶴三 feat. 鏡音リン',
     url:    'https://piapro.jp/t/QBdL/20251215094303',
-    bpm:    130, 
+    bpm:    65, 
     scroll_spd: 0.45,
   },
   {

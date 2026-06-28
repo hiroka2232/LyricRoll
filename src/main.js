@@ -35,7 +35,6 @@ const canvas     = document.querySelector('#piano-roll');
 const overlay    = document.querySelector('#loading-overlay');
 
 // 再生バー
-const seekBar    = document.querySelector('#seek-bar');  // バー本体（クリックで時間ジャンプ）
 const seekFill   = document.querySelector('#seek-fill');
 const seekTimeEl = document.querySelector('#seek-time'); // 現在位置 mm:ss
 const seekDurEl  = document.querySelector('#seek-dur');  // 曲全体の長さ mm:ss
@@ -642,33 +641,6 @@ function updateSeekUI(cur, dur) {
   if (seekDurEl.textContent !== durText) seekDurEl.textContent = durText;
 }
 
-let seekDragging = false;
-
-function seekToPointer(e) {
-  if (!player.video || state.duration <= 0) return;
-  const rect  = seekBar.getBoundingClientRect();
-  const ratio = Math.min(Math.max((e.clientX - rect.left) / rect.width, 0), 1);
-  const time  = ratio * state.duration;
-  player.requestMediaSeek(time); // プレイヤー本体の再生位置を移動
-
-  // onTimeUpdate が来るまでのちらつき防止に，表示と補間の基準も即座に移動先へ合わせる
-  state.curTime       = time;
-  state.syncTime      = time;
-  state.syncWallClock = performance.now();
-  updateSeekUI(time, state.duration);
-}
-
-seekBar.addEventListener('pointerdown', (e) => {
-  seekDragging = true;
-  seekBar.setPointerCapture(e.pointerId); // バー外へドラッグしても追従させる
-  seekToPointer(e);
-});
-seekBar.addEventListener('pointermove', (e) => { if (seekDragging) seekToPointer(e); });
-seekBar.addEventListener('pointerup',   (e) => {
-  seekDragging = false;
-  seekBar.releasePointerCapture(e.pointerId);
-});
-
 // pointer イベントはマウスとタッチの両方で発火する
 let pointerActive = false;
 let lastTouch     = null; // {x, y, color} タッチ中の現在位置
@@ -805,15 +777,14 @@ vuCtx.scale(vuDpr, vuDpr);
 const vuBands = new Array(VU_BANDS).fill(0);
 const vuPeaks = new Array(VU_BANDS).fill(0);
 
-function updateVU() {
-  // 全体の音量レベル(0〜1)．再生中だけ実データを読み，停止中は 0．
-  let level = 0;
-  if (state.isPlaying && state.maxVocalAmplitude > 0) {
-    const raw = player.getVocalAmplitude(state.curTime);
-    level = raw / state.maxVocalAmplitude;
-    if (level > 1) level = 1;
-  }
+// 再生中の正規化済み声量(0〜1)．VUメーターとピッチボールで共有し，毎フレームの二度読みを避ける
+function currentVocalLevel() {
+  if (!state.isPlaying || state.maxVocalAmplitude <= 0) return 0;
+  const level = player.getVocalAmplitude(state.curTime) / state.maxVocalAmplitude;
+  return Math.min(Math.max(level, 0), 1);
+}
 
+function updateVU(level) {
   const tSec = performance.now() / 1000; // 揺らぎ用の時刻[秒]
 
   for (let band = 0; band < VU_BANDS; band++) {
@@ -1172,6 +1143,7 @@ function applyScrollSpeed() {
 // 毎フレーム作ると重い「未来カーブのグラデーション」と「ボール光彩の基準半径」を
 // 1回だけ作り置きする（画面サイズ・行高さに依存するので recalcLayout から呼ぶ）
 let futureTrailGrad = null; // 未来ピッチカーブ用の横グラデーション
+let bgGrad          = null; // ピアノロール背景の固定グラデーション
 let pitchGlowR      = 0;    // ボール光彩の基準半径（行高さに合わせて縮めた値）
 
 function rebuildPitchSprites() {
@@ -1182,6 +1154,11 @@ function rebuildPitchSprites() {
   futureTrailGrad.addColorStop(0,    'rgba(255, 255, 255, 1.00)');
   futureTrailGrad.addColorStop(0.30, 'rgba(255, 255, 255, 0.80)');
   futureTrailGrad.addColorStop(1,    'rgba(255, 255, 255, 0.18)');
+
+  // ピアノロール背景のグラデーション（画面サイズでしか変わらないので作り置き）
+  bgGrad = ctx.createLinearGradient(LAYOUT.LEFT_W, LAYOUT.RULER_H, viewW, viewH);
+  bgGrad.addColorStop(0, COLORS.BG);
+  bgGrad.addColorStop(1, COLORS.BG_WARM);
 
   // 光彩は声量で色が変わるため作り置きできない（drawPitchBall で毎フレーム作る）．
   // ここでは基準半径だけ計算しておく．
@@ -1300,13 +1277,8 @@ function drawRuler() {
 
 function drawGrid() {
   // 背景：左上(ティール)→右下(向日葵)の淡いパステルグラデ．画面に固定（ノートが上を流れる）
-  const rollX = LAYOUT.LEFT_W;
-  const rollY = LAYOUT.RULER_H;
-  const bgGrad = ctx.createLinearGradient(rollX, rollY, viewW, viewH);
-  bgGrad.addColorStop(0, COLORS.BG);       // ティール寄り（seaglass）
-  bgGrad.addColorStop(1, COLORS.BG_WARM);  // 向日葵寄り（淡いイエロー）
   ctx.fillStyle = bgGrad;
-  ctx.fillRect(rollX, rollY, viewW - LAYOUT.LEFT_W, viewH - LAYOUT.RULER_H);
+  ctx.fillRect(LAYOUT.LEFT_W, LAYOUT.RULER_H, viewW - LAYOUT.LEFT_W, viewH - LAYOUT.RULER_H);
 
   for (let i = 0; i < ROW_COUNT; i++) {
     const y = rowY(i);
@@ -1656,7 +1628,7 @@ function drawPitchTrail() {
 let ballPulse = 0;
 
 // 再生ライン上で上下するボール（声量で半径と発光が変わる）
-function drawPitchBall() {
+function drawPitchBall(vocalLevel) {
   if (!PITCH.ENABLED) return;
   const y = pitchYAt(state.curTime);
   // null（無音区間）だけでなく NaN/Infinity（段未確定など）も弾く．
@@ -1665,13 +1637,6 @@ function drawPitchBall() {
 
   const phX = playheadX();
 
-  // 声量レベル(0〜1)．再生中だけ実データを読み，停止中は 0．
-  let vocalLevel = 0;
-  if (state.isPlaying && state.maxVocalAmplitude > 0) {
-    vocalLevel = player.getVocalAmplitude(state.curTime) / state.maxVocalAmplitude;
-    if (vocalLevel > 1) vocalLevel = 1;
-    if (vocalLevel < 0) vocalLevel = 0;
-  }
   // 上がり速く・下がり遅く
   const pulseSpeed = vocalLevel > ballPulse ? 0.5 : 0.12;
   ballPulse += (vocalLevel - ballPulse) * pulseSpeed;
@@ -1842,6 +1807,12 @@ function drawPlayhead() {
 }
 
 function render() {
+  // スタート画面表示中はピアノロールが隠れているので描画を省く
+  if (!startScreen.classList.contains('hidden')) {
+    requestAnimationFrame(render);
+    return;
+  }
+
   // onTimeUpdate は数十ms間隔でしか発火しないため，壁時計で補間して滑らかにする
   if (state.isPlaying && state.syncWallClock > 0) {
     const elapsed = performance.now() - state.syncWallClock;
@@ -1861,7 +1832,8 @@ function render() {
 
   commitRows(); // 画面に入る直前のノートの段を確定
   updateSeekUI(state.curTime, state.duration);
-  updateVU();
+  const vocalLevel = currentVocalLevel();
+  updateVU(vocalLevel);
 
   // 毎フレーム座標系を dpr 倍にスケールし直す（以降は viewW/viewH 基準で描ける）
   ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
@@ -1877,7 +1849,7 @@ function render() {
   drawNoteTexts();
   drawLeftPanel();
   drawPlayhead();
-  drawPitchBall();
+  drawPitchBall(vocalLevel);
   drawTouchPointer();
   drawRuler();
   drawActiveNotes(); // 歌詞は最前面．ルーラーにも隠れないよう一番最後に描く

@@ -190,7 +190,6 @@ button, input, select, textarea {
   background: #dff1f3;
   border: 1px solid #b7dde6;
   border-radius: 0;
-  cursor: pointer;   /* クリック/ドラッグで時間ジャンプ */
   overflow: hidden;
 }
 

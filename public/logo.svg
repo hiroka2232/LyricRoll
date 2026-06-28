@@ -42,13 +42,11 @@
   <!-- 再生ラインの三角マーカー（タイルの上にちょこんと乗せる。クリップ外に描く）-->
   <path d="M147 22 L159 22 L153 30 Z" fill="#e12885"/>
 
-  <!-- ワードマーク：LYRIC=向日葵（パステル）/ ROLL=ティール（パステル）。
-       太さは控えめ（Helvetica の太字700）。薄い色なので、paint-order="stroke" で
-       淡いフチを細く敷いて、白地でも輪郭がほのかに出るようにする。 -->
-  <g font-family="'Helvetica Neue',Arial,sans-serif" font-weight="700"
+  <!-- ワードマーク：LYRIC=向日葵 / ROLL=ティール。アプリのタイトルと同じ M PLUS Rounded 1c。
+       薄い色なので paint-order="stroke" で淡いフチを敷き、白地でも輪郭が出るようにする。 -->
+  <g font-family="'M PLUS Rounded 1c','Hiragino Maru Gothic ProN','Segoe UI','Yu Gothic','Meiryo',system-ui,sans-serif" font-weight="700"
      letter-spacing="1" paint-order="stroke" stroke-linejoin="round">
     <text x="224" y="96"  font-size="56" fill="#FFE08A" stroke="#E9C25C" stroke-width="1.2">LYRIC</text>
     <text x="224" y="150" font-size="56" fill="#86DDD4" stroke="#5FC3B8" stroke-width="1.2">ROLL</text>
   </g>
-  <text x="226" y="172" font-family="'Helvetica Neue',Arial,sans-serif" font-size="13" letter-spacing="3" fill="#9bb4ba">PIANO-ROLL LYRICS</text>
 </svg>

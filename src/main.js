@@ -83,7 +83,7 @@ const state = {
   userRow:             null,      // ユーザがタップで指定した段（null = 指定なし）
   userRowUntil:        0,         // この曲中時刻(ms)までユーザ指定を有効化
   isAutoMode:          false,
-  soundEnabled:        true,       // タップ音のON/OFF（仮ボタンで切り替え）
+  soundEnabled:        true,       // タップ音のON/OFF
 
   // VUメーター用：この曲の最大声量（声量を 0〜1 に正規化するときの分母）
   maxVocalAmplitude:   0,
@@ -949,7 +949,7 @@ function setAutoMode(on) {
 
 autoToggle.addEventListener('click', () => setAutoMode(!state.isAutoMode));
 
-// タップ音の ON/OFF（仮ボタン）
+// タップ音の ON/OFF
 const soundToggle = document.querySelector('#sound-toggle');
 
 function setSoundEnabled(on) {

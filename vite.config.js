@@ -21,11 +21,6 @@ export default defineConfig({
     // cloudflared の公開URL( 〇〇.trycloudflare.com )は毎回サブドメインが変わるので、
     // 先頭ドットの書き方で「trycloudflare.com の全サブドメイン」をまとめて許可する。
     allowedHosts: ['.trycloudflare.com'],
-
-    // ── songle.jp の CORS 回避プロキシは廃止した ──
-    // 以前は songle.jp の 302リダイレクト(CORSヘッダー無し)を避けるため、開発サーバで
-    // 中継していた。今は songs.js の曲URLにバージョン番号を付け、最初からリダイレクトが
-    // 起きない正式URLを叩くようにしたのでプロキシは不要。詳しくは songs.js の先頭コメント参照。
   },
 
   // preview（本番ビルドの確認サーバ：npm run preview）の設定。

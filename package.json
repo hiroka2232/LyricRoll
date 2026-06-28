@@ -9,7 +9,6 @@
     "preview": "vite preview"
   },
   "devDependencies": {
-    "@vitejs/plugin-basic-ssl": "^2.3.0",
     "cloudflared": "^0.7.1",
     "vite": "^8.0.12"
   },

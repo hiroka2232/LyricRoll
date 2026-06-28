@@ -190,7 +190,7 @@ button, input, select, textarea {
   background: #dff1f3;
   border: 1px solid #b7dde6;
   border-radius: 0;
-  cursor: pointer;   /* クリック/ドラッグで時間ジャンプ（デバッグ用）*/
+  cursor: pointer;   /* クリック/ドラッグで時間ジャンプ */
   overflow: hidden;
 }
 
@@ -645,13 +645,6 @@ button:disabled {
   align-items: center;
   justify-content: center;
   gap: 14px;
-}
-
-/* 左のロゴ・マーク（文字なしSVG）*/
-.start-logo-mark {
-  height: clamp(48px, 11vw, 68px);
-  width: auto;
-  flex: none;
 }
 
 /* ワードマーク「Lyric / Roll」を2段に積む */

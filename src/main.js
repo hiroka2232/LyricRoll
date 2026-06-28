@@ -939,7 +939,6 @@ const seekEl         = document.querySelector('#seek');
 const readoutEl      = document.querySelector('#transport-readout');
 const toolbarLeftEl   = document.querySelector('.toolbar-left');
 const toolbarRightEl  = document.querySelector('.toolbar-right');
-const toolbarCenterEl = document.querySelector('.toolbar-center'); // 再生ボタン群
 // VUメーター(vuCanvas)・速度コントロール(speedControl)は上で取得済みのものを使い回す
 
 // スマホかどうか（CSS の @media と同じ条件）
@@ -949,10 +948,9 @@ const phoneMediaQuery = window.matchMedia(
 
 function applyResponsiveLayout(isPhone) {
   if (isPhone) {
-    // スマホ：ヘッダーの曲情報の右側に「再生バー → BPM/小節」，VUメーターは再生ボタン群の直後へ
+    // スマホ：ヘッダーの曲情報の右側に「再生バー → BPM/小節」を移す（VUメーターは右のツール側に残す）
     headerEl.appendChild(seekEl);
     headerEl.appendChild(readoutEl);
-    toolbarCenterEl.appendChild(vuCanvas);
   } else {
     // PC / タブレット：元の下部バーの位置に戻す．
     // insertBefore は基準ノードが親の子である必要があるので先に VUメーターを戻す．

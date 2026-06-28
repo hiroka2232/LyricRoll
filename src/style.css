@@ -999,10 +999,13 @@ button:disabled {
     justify-content: space-between;
   }
   .toolbar-left,
-  .toolbar-center,
   .toolbar-right {
-    flex: 0 1 auto;
+    flex: 1 1 0;
     min-width: 0;
+    gap: 6px;
+  }
+  .toolbar-center {
+    flex: 0 0 auto;
     gap: 6px;
   }
   .toolbar-left { padding-right: 0; }
@@ -1017,11 +1020,8 @@ button:disabled {
   #toolbar #sound-toggle { min-width: 114px; }
   #toolbar button { padding: 7px; }
 
-  /* スマホでは JS が VUメーターを中央へ移すので右寄せの押し出しを解除する */
+  /* VUメーターは右のツール側に置くので，右寄せの押し出しを解除して隣のボタンと詰める */
   #vu-meter { margin-left: 0; }
-
-  /* 再生ボタン群と直後の VUメーターの間隔を詰める */
-  .toolbar-center { gap: 10px; }
 }
 
 /* スマホを縦向きで開いたときだけ横向きを促す案内を表示 */

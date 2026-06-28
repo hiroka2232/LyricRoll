@@ -948,7 +948,7 @@ const phoneMediaQuery = window.matchMedia(
 
 function applyResponsiveLayout(isPhone) {
   if (isPhone) {
-    // スマホ：ヘッダーの曲情報の右側に「再生バー → BPM/小節」を移す（VUメーターは右のツール側に残す）
+    // スマホ：再生バーと BPM/小節をヘッダーへ移す
     headerEl.appendChild(seekEl);
     headerEl.appendChild(readoutEl);
   } else {

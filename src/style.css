@@ -990,6 +990,7 @@ button:disabled {
   #header .readout-cell  { padding: 3px 8px; }
   #header .readout-value { font-size: 12px; }
   #header .readout-label { font-size: 12px; }
+  #header .readout-chord { width: 7.7em; }
 
   #toolbar {
     height: auto;
@@ -1020,7 +1021,6 @@ button:disabled {
   #toolbar #sound-toggle { min-width: 114px; }
   #toolbar button { padding: 7px; }
 
-  /* VUメーターは右のツール側に置くので，右寄せの押し出しを解除して隣のボタンと詰める */
   #vu-meter { margin-left: 0; }
 }
 

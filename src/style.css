@@ -21,9 +21,14 @@
 }
 
 html, body {
+  /* スマホで画面全体が指で動く（横スクロール・ラバーバンド）のを防ぎ，常に固定する．
+     overflow:hidden だけでは iOS が止めないので，画面に position:fixed で貼り付ける */
+  position: fixed;
+  inset: 0;            /* 上下左右すべて 0 に固定 */
   width: 100%;
   height: 100%;
   overflow: hidden;
+  overscroll-behavior: none; /* 端での引っぱり（ラバーバンド）も止める */
   background: #f4fbfa;
   color: #1e3a48;
   /* 日本語UIは丸ゴシック．読み込み前は OS のゴシックで代替 */
@@ -44,7 +49,6 @@ button, input, select, textarea {
   height: 100dvh;
 }
 
-/* ── ヘッダー ────────────────────────────────────── */
 #header {
   display: flex;
   align-items: center;
@@ -103,7 +107,6 @@ button, input, select, textarea {
   white-space: nowrap;
 }
 
-/* ── BPM / 小節 表示（下部ツールバー）──────── */
 /* 角の立った長方形・パステルの計器板 */
 #transport-readout {
   display: flex;
@@ -160,7 +163,6 @@ button, input, select, textarea {
   text-align: center;
 }
 
-/* ── 再生バー（シークバー）────────────── */
 #seek {
   display: flex;
   align-items: center;
@@ -202,7 +204,6 @@ button, input, select, textarea {
   background: #bfe3c8;
 }
 
-/* ── 下部ツールバー ──────────────────────────────── */
 #toolbar {
   flex-shrink: 0;
   /* 高さは画面比で固定（clamp で上下限を制限）*/
@@ -245,6 +246,13 @@ button, input, select, textarea {
   width: clamp(16px, 1.6vw, 22px);
   height: clamp(16px, 1.6vw, 22px);
   display: block;
+}
+
+/* 速度・音量ボタンはアイコンを少し大きくして目立たせる */
+#toolbar #speed-toggle svg,
+#toolbar #volume-toggle svg {
+  width: clamp(20px, 2.0vw, 28px);
+  height: clamp(20px, 2.0vw, 28px);
 }
 
 #toolbar button svg.spin {
@@ -298,7 +306,6 @@ button, input, select, textarea {
   height: clamp(20px, 2.0vw, 30px);
 }
 
-/* ── DAW 風トランスポート（停止・再生・一時停止）──────── */
 /* 隙間なく連結した角の立った長方形ボタンを横一列に並べる */
 #transport-controls {
   display: flex;
@@ -367,7 +374,6 @@ button, input, select, textarea {
   box-shadow: inset 0 2px 4px rgba(60, 130, 90, 0.35);
 }
 
-/* ── 音量コントロール ────────────────────────────── */
 #volume-control {
   position: relative;
   display: flex;
@@ -411,7 +417,11 @@ button, input, select, textarea {
 /* ON 状態のアイコンは暗いトーンで強調 */
 #volume-toggle.active { color: #3a8060; }
 
-/* ── スクロール速度コントロール（音量コントロールと同じ作り）──── */
+/* iOS は全ブラウザ（iOS Chrome 含む）で JS からの音量変更ができないため，
+   効かない音量コントロールを隠す．.ios クラスは main.js が iOS 判定時に付ける．
+   Android・PC では効くのでそのまま表示する */
+html.ios #volume-control { display: none; }
+
 #speed-control {
   position: relative;
   display: flex;
@@ -454,7 +464,6 @@ button, input, select, textarea {
 
 #speed-toggle.active { color: #3a8060; }
 
-/* ── ピアノロールエリア ──────────────────────────── */
 #piano-roll-wrap {
   flex: 1;
   position: relative;
@@ -476,7 +485,6 @@ button, input, select, textarea {
 }
 
 
-/* ── VUメーター（ツールバー内のミニLED表示）──────────── */
 /* 中身は canvas に描画．実解像度は JS が設定するのでここでは見た目だけ指定 */
 #vu-meter {
   display: block;
@@ -489,7 +497,6 @@ button, input, select, textarea {
   margin-left: auto;            /* ここから後ろを右端へ寄せる */
 }
 
-/* ── ローディングオーバーレイ ──────────────────────── */
 #loading-overlay {
   position: absolute;
   inset: 0;
@@ -517,11 +524,27 @@ button, input, select, textarea {
   animation: spin 0.8s linear infinite;
 }
 
+/* 読み込み失敗時：回転スピナーを止め，エラーと分かる見た目にする */
+#loading-overlay.load-error .loading-spinner { display: none; }
+#loading-overlay.load-error .loading-text    { color: #d05a5a; }
+
+/* 失敗時だけ出す「曲一覧に戻る」ボタン（通常は非表示）*/
+.loading-back-btn {
+  display: none;
+  padding: 8px 18px;
+  background: #f4fbfa;
+  border: 1px solid #b7dde6;
+  color: #4a6470;
+  font-size: 13px;
+  font-weight: bold;
+  cursor: pointer;
+}
+#loading-overlay.load-error .loading-back-btn { display: inline-block; }
+
 @keyframes spin {
   to { transform: rotate(360deg); }
 }
 
-/* ── 汎用ボタン ────────────────────── */
 button {
   background: #f4fbfa;
   color: #1e3a48;
@@ -544,7 +567,6 @@ button:disabled {
   cursor: not-allowed;
 }
 
-/* ── スタート画面（曲選択）──────────── */
 #start-screen {
   position: fixed;
   inset: 0;
@@ -570,7 +592,6 @@ button:disabled {
   display: none;
 }
 
-/* ── 背景装飾（pointer-events:none で飾りに徹する）── */
 .start-decor {
   position: absolute;
   inset: 0;
@@ -681,7 +702,6 @@ button:disabled {
 /* 押し込み表現．縦中央揃えを保ったまま1px下げる */
 .help-button:active { transform: translateY(calc(-50% + 1px)); }
 
-/* ── 操作方法ポップアップ（モーダル）──────────────────────── */
 /* 画面全体を覆い中身を中央に置く（z-index はスタート画面より上）*/
 .help-modal {
   position: fixed;
@@ -907,14 +927,16 @@ button:disabled {
 }
 
 /* モード切替ボタン（#toolbar button に競り勝たせるため #toolbar を前置）*/
-#toolbar #auto-toggle {
+#toolbar #auto-toggle,
+#toolbar #sound-toggle {
   /* 余白・文字は画面横幅に応じて拡縮 */
   padding: clamp(8px, 1.0vw, 14px) clamp(12px, 1.6vw, 22px);
   background: #f4fbfa;
   border: 1px solid #b7dde6;
   border-radius: 0;
   color: #4a6470;
-  font-size: clamp(12px, 1.1vw, 16px);
+  /* 2つのボタンで共通．ラベルが長くても再生バーを圧迫しないよう控えめなサイズにする */
+  font-size: clamp(11px, 1.0vw, 13px);
   font-weight: bold;
   letter-spacing: 1px;
   white-space: nowrap;       /* 「モード：タッチ」を折り返さない */
@@ -923,14 +945,19 @@ button:disabled {
   transition: background 0.15s, color 0.15s, border-color 0.15s;
 }
 
-/* AUTO モードのとき：グリーン系でくっきり色分けする */
-#toolbar #auto-toggle.active {
+/* ラベルが切り替わっても幅が動かないよう，最長表記に合わせて幅を固定する．
+   （幅が変わると隣の再生バー flex:1 が伸縮して見た目が揺れるのを防ぐ）*/
+#toolbar #auto-toggle  { min-width: 148px; } /* 「モード：タッチ」「モード：AUTO」 */
+#toolbar #sound-toggle { min-width: 146px; } /* 「タップ音：ON」「タップ音：OFF」 */
+
+/* AUTO モード・音ON のとき：グリーン系でくっきり色分けする */
+#toolbar #auto-toggle.active,
+#toolbar #sound-toggle.active {
   background: #bfe3c8;
   border-color: #7fb795;
   color: #1e6a47;
 }
 
-/* ── 横向きを促す案内オーバーレイ（既定は非表示．下のメディアクエリで表示）── */
 #rotate-prompt {
   display: none;
   position: fixed;
@@ -961,7 +988,6 @@ button:disabled {
 @media (pointer: coarse) and (max-width: 600px),
        (pointer: coarse) and (max-height: 500px) {
 
-  /* ── 上部ヘッダーへ移動した 再生バー / BPM / 小節 ── */
   #header { gap: 8px; height: auto; min-height: 40px; }
   #header #seek {
     flex: 0 1 150px;
@@ -973,7 +999,6 @@ button:disabled {
   #header .readout-value { font-size: 12px; }
   #header .readout-label { font-size: 12px; }
 
-  /* ── 下部バー：1行に収める ── */
   #toolbar {
     height: auto;
     padding: 6px 10px;
@@ -993,7 +1018,11 @@ button:disabled {
   /* 再生ボタン・モードトグル・ツールボタンを小さくして高さを抑える */
   #transport-controls .transport-btn { padding: 7px 16px; }
   #transport-controls .transport-btn svg { width: 24px; height: 24px; }
-  #toolbar #auto-toggle { padding: 8px 12px; font-size: 13px; }
+  #toolbar #auto-toggle,
+  #toolbar #sound-toggle { padding: 8px 12px; font-size: 13px; }
+  /* 文字・余白が小さくなるぶん固定幅も縮める（揺れ防止はそのまま）*/
+  #toolbar #auto-toggle  { min-width: 116px; }
+  #toolbar #sound-toggle { min-width: 114px; }
   #toolbar button { padding: 7px; }
 
   /* スマホでは JS が VUメーターを中央へ移すので右寄せの押し出しを解除する */

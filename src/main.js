@@ -7,6 +7,7 @@ import './style.css';
 import { Player } from 'textalive-app-api';
 import { LAYOUT, COLORS, ROW_COLORS, PITCH, CONTROL, ROW_TRANSITION } from './config.js';
 import { SONGS } from './songs.js';
+import { chordToRowVoices, playTapTone } from './sound.js';
 
 // 段（歌詞が流れる横の行）の数．色テーブルと1対1なので長さから求める
 const ROW_COUNT = ROW_COLORS.length;
@@ -60,7 +61,6 @@ let   baseTimeScale = SONGS[0].scroll_spd * speedMultiplier; // 実効 px/ms（�
 const ICON_PLAY = `<svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M8 5v14l11-7z"/></svg>`;
 const ICON_LOADING = `<svg class="spin" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M21 12a9 9 0 1 1-6.219-8.56"/></svg>`;
 
-// ── 状態 ─────────────────────────────────────────────────
 const state = {
   noteItems:           [],        // [{start, end, rowIdx, lyric}] start 順ソート済み
   beats:               [],        // [{time, pos, bar}]
@@ -83,12 +83,12 @@ const state = {
   userRow:             null,      // ユーザがタップで指定した段（null = 指定なし）
   userRowUntil:        0,         // この曲中時刻(ms)までユーザ指定を有効化
   isAutoMode:          false,
+  soundEnabled:        true,       // タップ音のON/OFF（仮ボタンで切り替え）
 
   // VUメーター用：この曲の最大声量（声量を 0〜1 に正規化するときの分母）
   maxVocalAmplitude:   0,
 };
 
-// ── Player ───────────────────────────────────────────────
 const player = new Player({
   app: { token: 'piNyzZr3BgAHDkoh' },
   vocalAmplitudeEnabled: true, // 声量データ（VUメーター用）を取得できるようにする
@@ -100,11 +100,10 @@ let isSongChosen = false;        // スタート画面で曲が選ばれたら t
 let isSongLoading = false;       // createFromSongUrl 実行中（並列呼び出し防止）
 let pendingNextSongIdx = null;   // 読み込み中に来た切り替え要求の保持（null=なし）
 
-// ── 読み込みリトライ（一時的失敗・歌詞欠落への対策）──────────
 // サーバーが一時的に遅いと読み込みが失敗したり歌詞が空で返るので，少し待って自動でやり直す
 let loadAttempt = 0;               // 現在の曲で試した回数（loadSong でリセット）
-const MAX_LOAD_RETRIES = 2;        // 自動リトライの上限回数
-const RETRY_DELAY_MS   = 1500;     // リトライ前に待つ時間(ms)
+const MAX_LOAD_RETRIES = 3;        // 自動リトライの上限回数
+const RETRY_DELAY_MS   = 2000;     // リトライ前に待つ時間(ms)
 const loadingText = overlay.querySelector('.loading-text');
 const LOADING_MSG = '楽曲データ読み込み中...';
 
@@ -122,7 +121,8 @@ function retryOrFailLoad(reason) {
   } else {
     console.error(`曲データの取得に失敗しました。理由: ${reason}`);
     if (loadingText) loadingText.textContent =
-      '読み込みに失敗しました。通信状況を確認し、「← 戻る」から曲を選び直してください。';
+      '読み込みに失敗しました。通信状況を確認して、下のボタンから曲を選び直してください。';
+    overlay.classList.add('load-error'); // スピナーを止めて戻るボタンを出す
     overlay.style.display = 'flex';
     // 曲データが無いので再生ボタンは押せないままにする（誤操作防止）
     playBtn.disabled  = true;
@@ -140,9 +140,10 @@ function startSongLoad(idx) {
   isSongLoading        = true;
   pendingNextSongIdx = null;
 
+  // 第二引数の video で音楽地図・歌詞タイミングのバージョンを固定する（曲データ側の video）．
   // catch しないと，読み込み失敗時に isSongLoading が true のまま固まり
   // 以降の曲が一切読めなくなる
-  player.createFromSongUrl(SONGS[idx].url).catch((err) => {
+  player.createFromSongUrl(SONGS[idx].url, { video: SONGS[idx].video }).catch((err) => {
     console.error('曲の読み込みに失敗しました:', err);
     isSongLoading = false;
 
@@ -162,13 +163,15 @@ function startSongLoad(idx) {
 function loadSong(idx) {
   // onAppReady・startSongLoad からも参照するので先に更新しておく
   currentSongIdx = idx;
-
   state.isReadyToPlay = false;
   state.noteItems     = [];
+  // noteItems を空にしたら段の確定位置も0へ戻す．戻さないと読み込み失敗時に
+  // 前の曲の commitIdx が残り，pickRow が存在しないノートを触ってクラッシュする
+  state.commitIdx     = 0;
   state.beats         = [];
   state.curTime       = 0;
   state.duration      = 0;
-  state.isSongEnded   = false;  // 「再生し終えた」状態を解除
+  state.isSongEnded   = false;
   state.activeRowSet  = new Set();
   // 補間の基準も初期化（前の曲の時刻が一瞬表示されるのを防ぐため）
   state.syncTime      = 0;
@@ -177,6 +180,7 @@ function loadSong(idx) {
   // 新しい曲なのでリトライ回数と読み込みメッセージを初期化
   loadAttempt = 0;
   if (loadingText) loadingText.textContent = LOADING_MSG;
+  overlay.classList.remove('load-error'); // 前回の失敗表示を消してスピナーを戻す
 
   overlay.style.display = 'flex';
   playBtn.disabled      = true;
@@ -217,7 +221,6 @@ function loadSong(idx) {
   }
 }
 
-// ── BPM 表示 ─────────────────────────────────────────────
 // BPM は曲ごとの固定値（songs.js の bpm）．bpmChanges のある曲は，再生位置 t が区間内のとき
 // その区間の BPM を返す．
 let lastBpmShown = null; // 直前に表示した BPM（同じ値の DOM 書き込みを避けるため保持）
@@ -226,7 +229,7 @@ let lastBpmShown = null; // 直前に表示した BPM（同じ値の DOM 書き�
 function bpmAtTime(t) {
   const song = SONGS[currentSongIdx];
   for (const change of song.bpmChanges ?? []) {
-    if (t >= change.from && t < change.to) return change.bpm;
+    if (t >= change.from_ms && t < change.end_ms) return change.bpm;
   }
   return song.bpm;
 }
@@ -241,7 +244,6 @@ function updateBpmDisplay(t) {
 }
 
 player.addListener({
-  // ── SDK 初期化完了 ──────────────────────────────────────
   // createFromSongUrl はこのタイミング以降でないと "parallel calls" エラーになる
   onAppReady: (_app) => {
     if (isAppReady) return; // CORS 等で二重に呼ばれることがある
@@ -258,19 +260,10 @@ player.addListener({
       return;
     }
 
-    // ── 文字ブロック収集 ────────────────────────────────
     const items = [];
 
-    // この曲で非表示にするフレーズ（別歌唱と同時に鳴り，API が時刻を正しく付けられない行）
+    // この曲で歌詞として表示しないフレーズ（メイン歌唱と同時に鳴るコーラス等）
     const hiddenPhrases = SONGS[currentSongIdx].hiddenPhrases ?? [];
-
-    // 時刻を手修正するフレーズ（フレーズ全文 → 単語ごと・文字ごとの正しい [開始ms, 終了ms]）．
-    // API の時刻が大きくずれるフレーズを，曲データ側で測り直した値に差し替えるために使う．
-    const correctedPhrases = SONGS[currentSongIdx].correctedPhrases ?? {};
-
-    // フレーズ全体を前後へずらす量（フレーズ全文 → ミリ秒，負で前へ）．フレーズ内のリズムは
-    // そのままに，開始位置だけを揃えたいとき（前のフレーズの直後に詰めたい等）に使う．
-    const phraseShifts = SONGS[currentSongIdx].phraseShifts ?? {};
 
     try {
       let phrase = player.video.firstPhrase;
@@ -280,36 +273,25 @@ player.addListener({
         const words = phrase.children ?? [];
         if (words.length === 0) { phrase = phrase.next; continue; }
 
-        // 非表示指定フレーズ（別歌唱と同時のコーラス等）はテキスト一致で丸ごと飛ばす．
-        // そのまま流すと API の不正確な時刻のせいで歌より先に流れて見えるため．
+        // 非表示指定フレーズ（コーラス等）はテキスト一致で丸ごと飛ばす
         const phraseText = words.map(word => word.text ?? '').join('');
         if (hiddenPhrases.some(text => phraseText.includes(text))) { phrase = phrase.next; continue; }
-
-        // このフレーズの手修正タイミング（無ければ undefined）．単語ごとの配列が入っている．
-        const correctedWords = correctedPhrases[phraseText];
-
-        // このフレーズ全体をずらす量（ミリ秒．指定が無ければ 0）
-        const shift = phraseShifts[phraseText] ?? 0;
 
         // 単語ごとに個別タイミングがあるか
         const hasWordTiming = words.some(word => word.startTime !== words[0].startTime);
 
-        if (correctedWords || hasWordTiming) {
+        if (hasWordTiming) {
           // 単語ごとの個別タイミングあり → 単語の時間幅で文字を均等割り（正確な同期）．
-          // 手修正タイミングがあるフレーズは，均等割りの代わりに測り直した値を1文字ずつ使う．
           for (let wi = 0; wi < words.length; wi++) {
             const word = words[wi];
             const chars = [...(word.text ?? '')];
             if (!chars.length) continue;
             const wordDur = word.endTime - word.startTime;
             const charDur = wordDur > 0 ? wordDur / chars.length : 80;
-            const correctedChars = correctedWords ? correctedWords[wi] : null;
             chars.forEach((ch, i) => {
-              // 手修正値があればそれを，無ければ単語の時間幅から均等割りした時刻を使う
-              const fix = correctedChars ? correctedChars[i] : null;
               items.push({
-                start:       (fix ? fix[0] : word.startTime + i * charDur) + shift,
-                end:         (fix ? fix[1] : word.startTime + (i + 1) * charDur) + shift,
+                start:       word.startTime + i * charDur,
+                end:         word.startTime + (i + 1) * charDur,
                 lyric:       ch,
                 phraseStart: wi === 0 && i === 0,
                 wordStart:   i === 0,
@@ -328,8 +310,8 @@ player.addListener({
           const charDur   = phraseDur > 0 ? phraseDur / allChars.length : 100;
           allChars.forEach((item, i) => {
             items.push({
-              start:       phrase.startTime + i * charDur + shift,
-              end:         phrase.startTime + (i + 1) * charDur + shift,
+              start:       phrase.startTime + i * charDur,
+              end:         phrase.startTime + (i + 1) * charDur,
               lyric:       item.ch,
               phraseStart: i === 0,
               wordStart:   item.wordStart,
@@ -352,7 +334,6 @@ player.addListener({
     }
     loadAttempt = 0; // 歌詞を取得できたのでリトライ回数をリセット
 
-    // ── ビート収集 ──────────────────────────────────────
     // ビートは歌詞と違い player.getBeats() で配列として取得する（video.firstBeat は無い）
     state.beats = [];
     try {
@@ -370,7 +351,6 @@ player.addListener({
     // ノート始点をビートグリッドへ吸着（クオンタイズ）
     quantizeItems(items, state.beats);
 
-    // ── 段割り当ての準備 ─────────────────────────────
     // 段はここでは決めず，ノートが画面右端に入る直前に commitRows() が1つずつ確定する
     // （ユーザのタップ指定とランダムウォークを切り替えるため）
     state.commitIdx    = 0;
@@ -380,7 +360,6 @@ player.addListener({
     // ランダムウォークのタネ．曲ごとに変えて同じ曲でも実行のたびに違うウォークにする
     state.walkSeed     = Math.random() * 100000;
 
-    // ── スロット幅と描画幅を事前計算 ──────────────────────────
     for (let i = 0; i < items.length; i++) {
       const nextStart = i + 1 < items.length ? items[i + 1].start : items[i].end + 200;
 
@@ -435,7 +414,6 @@ player.addListener({
     state.maxVocalAmplitude = player.getMaxVocalAmplitude();
   },
 
-  // ── 音源（Timer）の準備完了 ──────────────────────────────
   // requestPlay() が機能するのはこのイベント以降．ここで再生ボタンを有効化し
   // 読み込みオーバーレイを消して「押せる＝本当に音が鳴る」状態に揃える．
   onTimerReady: (_timer) => {
@@ -543,7 +521,6 @@ function togglePlayPause() {
   else               player.requestPlay();
 }
 
-// ── キーボードショートカット ──────────────────────────────
 // スペース＝再生/一時停止，M＝モード切替（AUTO/タッチ）
 document.addEventListener('keydown', (e) => {
   // 入力欄にフォーカス中はキー操作を奪わない
@@ -560,7 +537,6 @@ document.addEventListener('keydown', (e) => {
   }
 });
 
-// ── スタート画面（曲選択）─────────────────────────────────
 // カードを押すとその曲を読み込んでメイン画面へ進む
 SONGS.forEach((song, i) => {
   const card = document.createElement('button');
@@ -594,7 +570,14 @@ function returnToStartScreen() {
 const backToSongs = document.querySelector('#back-to-songs');
 backToSongs.addEventListener('click', returnToStartScreen);
 
-// ── 曲を最後まで再生し終えたときのポップアップ（#end-screen）──
+// 読み込み失敗オーバーレイの「曲一覧に戻る」ボタン：オーバーレイを閉じて曲選択へ戻す
+const loadingBackBtn = document.querySelector('#loading-back');
+loadingBackBtn.addEventListener('click', () => {
+  overlay.style.display = 'none';
+  overlay.classList.remove('load-error');
+  returnToStartScreen();
+});
+
 const endScreen   = document.querySelector('#end-screen');
 const endBackBtn  = document.querySelector('#end-back');
 const endReplayBtn = document.querySelector('#end-replay');
@@ -614,7 +597,6 @@ endReplayBtn.addEventListener('click', () => {
   loadSong(currentSongIdx);
 });
 
-// ── 操作方法ポップアップ（ヘルプモーダル）────────────────────
 const helpButton   = document.querySelector('#help-button');
 const helpModal    = document.querySelector('#help-modal');
 const helpClose    = document.querySelector('#help-close');
@@ -638,8 +620,6 @@ if (!localStorage.getItem(HELP_SEEN_KEY)) {
   localStorage.setItem(HELP_SEEN_KEY, 'true');
 }
 
-// ── 再生バー（シークバー）────────────────────────────────
-// ミリ秒を mm:ss 形式の文字列にする
 function formatTime(ms) {
   const s = Math.max(0, Math.floor(ms / 1000));
   return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`;
@@ -662,8 +642,6 @@ function updateSeekUI(cur, dur) {
   if (seekDurEl.textContent !== durText) seekDurEl.textContent = durText;
 }
 
-// ── シークバーのクリック/ドラッグで時間ジャンプ（デバッグ用）──
-// バー上の位置の割合から再生位置を求め，その時刻へ移動する．
 let seekDragging = false;
 
 function seekToPointer(e) {
@@ -691,11 +669,10 @@ seekBar.addEventListener('pointerup',   (e) => {
   seekBar.releasePointerCapture(e.pointerId);
 });
 
-// ── 段指定（ピアノロール右部のタップ/クリック/ドラッグ）──
 // pointer イベントはマウスとタッチの両方で発火する
 let pointerActive = false;
 let lastTouch     = null; // {x, y, color} タッチ中の現在位置
-const touchTrail  = [];   // [{x, y, t, color}] 彗星の尾用の位置履歴
+const touchTrail  = [];   // [{x, y, t, color}] 軌跡用の位置履歴
 
 function pickRow(e) {
   if (state.isAutoMode) return; // AUTO 中はタッチ不可
@@ -716,24 +693,98 @@ function pickRow(e) {
   // 確定済みでも，まだ再生ラインの右にあるノートは指定段へ振り直す
   // （冒頭は1画面分が先に確定済みのため，これがないと反応が数秒遅れる）
   const items   = state.noteItems;
+  if (!items.length) return; // 曲が未読み込み（読み込み失敗時など）は振り直す対象がない
   const minTime = state.curTime + CONTROL.LEAD_MS;
   let i = lowerBound(items, minTime);
   // 次の単語の先頭まで進める（再生中の単語が途中で段替わりしないように）
   while (i < state.commitIdx && !(items[i].wordStart && items[i].start > minTime)) i++;
   for (; i < state.commitIdx; i++) items[i].rowIdx = row;
   state.walkRow = row; // 以降のランダムウォークもこの段から続ける
+}
 
-  // タッチ演出用に位置を記録（色は指定段のキャラカラー）
-  const color = ROW_COLORS[row % ROW_COLORS.length];
+// 直前に音を鳴らした段（ドラッグ中に同じ段で鳴り続けるのを防ぐ．離すと -1 に戻す）
+let lastSoundRow = -1;
+// 直前に使った6段の声部（コードが取れない瞬間は前の音を使う．初期はCメジャー）
+let lastRowVoices = chordToRowVoices('C');
+// 直前に音セットを作った小節の頭の時刻（同じ小節の間は音を変えないための目印）
+let lastVoicesBarStart = null;
+
+// ポインタ位置がどの段かを返す（ルーラー・左パネル・段外なら -1）
+function rowFromPointer(e) {
+  const rect = canvas.getBoundingClientRect();
+  const x = e.clientX - rect.left;
+  const y = e.clientY - rect.top;
+  if (y <= LAYOUT.RULER_H || x <= LAYOUT.LEFT_W) return -1;
+  const row = Math.floor((y - LAYOUT.RULER_H) / state.rowH);
+  return (row >= 0 && row < ROW_COUNT) ? row : -1;
+}
+
+// 現在の小節の頭の時刻を返す（拍データが無ければ null）
+function currentBarStartTime() {
+  const beat = lastBeatAtOrBefore(state.curTime);
+  if (!beat) return null;
+  const head = state.beats.find(b => b.bar === beat.bar);
+  return head ? head.time : null;
+}
+
+// 現在の「小節頭のコード」に対応する6段ぶんの声部を返す（低い段から順）．
+// 1小節中にコードが何度も変わる曲でも小節頭のコードで固定し，つなぎのコードに振り回されない
+function currentRowVoices() {
+  if (!player.video) return lastRowVoices;
+
+  const barStart = currentBarStartTime();
+
+  // 拍データが無い曲では従来どおり「今この瞬間のコード」で鳴らす
+  if (barStart == null) {
+    const chord  = player.findChord(state.curTime);
+    const voices = chord ? chordToRowVoices(chord.name) : null;
+    if (voices) lastRowVoices = voices;
+    return lastRowVoices;
+  }
+
+  // 同じ小節の間は前に作った音セットをそのまま使い回す
+  if (barStart === lastVoicesBarStart) return lastRowVoices;
+
+  const chord  = player.findChord(barStart);
+  const voices = chord ? chordToRowVoices(chord.name) : null;
+  if (voices) {
+    lastRowVoices      = voices;
+    lastVoicesBarStart = barStart;
+  }
+  return lastRowVoices;
+}
+
+// タップ／ドラッグ位置の段の音を短く鳴らす（同じ段にいる間は鳴らさない）
+function playRowSound(e) {
+  if (!state.soundEnabled) return;
+  const row = rowFromPointer(e);
+  if (row < 0)              { lastSoundRow = -1; return; }
+  if (row === lastSoundRow) return;
+  lastSoundRow = row;
+  const voice = currentRowVoices()[ROW_COUNT - 1 - row]; // 上の段ほど高音
+  playTapTone([voice.harmony, voice.melody]);            // コードのルート（低音）と主音を鳴らす
+}
+
+// タップ位置に光ボール・軌跡を出す（AUTO/タッチどちらのモードでも出す）
+function showTouchEffect(e) {
+  const row = rowFromPointer(e);
+  if (row < 0) return;
+  const rect = canvas.getBoundingClientRect();
+  const x = e.clientX - rect.left;
+  const y = e.clientY - rect.top;
+  const color = ROW_COLORS[row % ROW_COLORS.length]; // 触れた段のキャラカラー
   lastTouch = { x, y, color };
   touchTrail.push({ x, y, t: performance.now(), color });
 }
 
-canvas.addEventListener('pointerdown', (e) => { pointerActive = true; pickRow(e); });
-canvas.addEventListener('pointermove', (e) => { if (pointerActive) pickRow(e); });
-window.addEventListener('pointerup',   ()  => { pointerActive = false; lastTouch = null; });
+canvas.addEventListener('pointerdown', (e) => { pointerActive = true; pickRow(e); playRowSound(e); showTouchEffect(e); });
+canvas.addEventListener('pointermove', (e) => { if (pointerActive) { pickRow(e); playRowSound(e); showTouchEffect(e); } });
 
-// ── VUメーター（ツールバーのミニLED表示．装飾）─────────────
+// 指やマウスを離したら段の手動指定とタッチ演出を終える（pointercancel は操作が途中で中断されたとき）
+function endPointer() { pointerActive = false; lastTouch = null; lastSoundRow = -1; }
+window.addEventListener('pointerup',     endPointer);
+window.addEventListener('pointercancel', endPointer);
+
 // 取得できるのは歌声の音量1値だけなので，それを複数バンドに振り分け，各バンドに
 // 違う揺らぎを与えてスペクトラムアナライザ風に見せている（実際の周波数解析ではない）
 const vuCanvas = document.querySelector('#vu-meter');
@@ -766,12 +817,12 @@ function updateVU() {
   const tSec = performance.now() / 1000; // 揺らぎ用の時刻[秒]
 
   for (let band = 0; band < VU_BANDS; band++) {
-    // バンドごとに位相と速さを変えた揺らぎでスペクトルらしさを出す
+    // バンドごとに位相と速さを変えた揺らぎを加える
     const wobble = 0.75 + 0.25 * Math.sin(tSec * (2 + band * 0.7) + band * 1.7);
     let target = level * wobble;
     if (target > 1) target = 1;
 
-    // 上がるとき速く・下がるときゆっくり（VUメーターらしい動き）
+    // 上がるとき速く・下がるときゆっくり
     const speed = target > vuBands[band] ? 0.6 : 0.12;
     vuBands[band] += (target - vuBands[band]) * speed;
 
@@ -812,28 +863,33 @@ function drawVU() {
   }
 }
 
-// ── 音量コントロール ─────────────────────────────────────
+// iOS は全ブラウザで JS からの音量変更ができないので，iOS のときだけ <html> に .ios を付け
+// CSS で音量コントロールを隠す（iPadOS 13+ は Mac を名乗るのでタッチ数も併用して判定）
+function isIOS() {
+  const ua = navigator.userAgent;
+  const iPhoneFamily = /iPhone|iPad|iPod/.test(ua);
+  const iPadOS       = navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1;
+  return iPhoneFamily || iPadOS;
+}
+if (isIOS()) document.documentElement.classList.add('ios');
+
 const volumeControl = document.querySelector('#volume-control');
 const volumeToggle  = document.querySelector('#volume-toggle');
 const volumePopup   = document.querySelector('#volume-popup');
 const volumeSlider  = document.querySelector('#volume-slider');
 const volumeValue   = document.querySelector('#volume-value');
 
-// ボタンを押すたびに縦スライダーの表示/非表示を切り替える
 volumeToggle.addEventListener('click', (e) => {
-  e.stopPropagation(); // 「外側クリックで閉じる」処理に拾われないようにする
+  e.stopPropagation(); // 外側クリックで閉じる処理に拾わせない
   const hidden = volumePopup.classList.toggle('hidden');
   volumeToggle.classList.toggle('active', !hidden);
 });
 
-// スライダーを動かすたびにプレイヤーの音量（0〜100）へ反映する
 volumeSlider.addEventListener('input', () => {
-  const volume = Number(volumeSlider.value);
-  player.volume = volume;
-  volumeValue.textContent = volume;
+  player.volume = Number(volumeSlider.value);
+  volumeValue.textContent = volumeSlider.value;
 });
 
-// ポップアップの外側をクリックしたら閉じる
 document.addEventListener('click', (e) => {
   if (!volumeControl.contains(e.target)) {
     volumePopup.classList.add('hidden');
@@ -841,7 +897,6 @@ document.addEventListener('click', (e) => {
   }
 });
 
-// ── スクロール速度コントロール（音量コントロールと同じ作り）──────
 const speedControl = document.querySelector('#speed-control');
 const speedToggle  = document.querySelector('#speed-toggle');
 const speedPopup   = document.querySelector('#speed-popup');
@@ -860,21 +915,19 @@ function lyricFontScale() {
   return 0.5 + Math.min(1, Math.max(0, progress)) * 0.5;
 }
 
-// ボタンを押すたびに縦スライダーの表示/非表示を切り替える
 speedToggle.addEventListener('click', (e) => {
-  e.stopPropagation(); // 「外側クリックで閉じる」処理に拾われないようにする
+  e.stopPropagation(); // 外側クリックで閉じる処理に拾わせない
   const hidden = speedPopup.classList.toggle('hidden');
   speedToggle.classList.toggle('active', !hidden);
 });
 
-// スライダー（50〜200）を 100 で割って ×0.5〜×2.0 の倍率にし，スクロール速度へ反映する
+// スライダー値（50〜200）を 100 で割って ×0.5〜×2.0 の倍率にする
 speedSlider.addEventListener('input', () => {
   speedMultiplier = Number(speedSlider.value) / 100;
   applyScrollSpeed();
   speedValue.textContent = '×' + speedMultiplier.toFixed(1);
 });
 
-// ポップアップの外側をクリックしたら閉じる
 document.addEventListener('click', (e) => {
   if (!speedControl.contains(e.target)) {
     speedPopup.classList.add('hidden');
@@ -896,7 +949,18 @@ function setAutoMode(on) {
 
 autoToggle.addEventListener('click', () => setAutoMode(!state.isAutoMode));
 
-// ── スマホでは 再生バー・BPM/小節 を上部ヘッダーへ移動する ──
+// タップ音の ON/OFF（仮ボタン）
+const soundToggle = document.querySelector('#sound-toggle');
+
+function setSoundEnabled(on) {
+  state.soundEnabled = on;
+  soundToggle.classList.toggle('active', on);
+  soundToggle.textContent = on ? 'タップ音：ON' : 'タップ音：OFF';
+}
+
+soundToggle.addEventListener('click', () => setSoundEnabled(!state.soundEnabled));
+setSoundEnabled(true);
+
 // CSS だけでは親要素を変えられないので JS で要素そのものを移し替える．
 // 判定条件は CSS のスマホ用レイアウトと同じ（タッチ端末かつ小画面．iPad は対象外）．
 const headerEl       = document.querySelector('#header');
@@ -930,7 +994,6 @@ function applyResponsiveLayout(isPhone) {
 applyResponsiveLayout(phoneMediaQuery.matches);                       // 起動時に一度適用
 phoneMediaQuery.addEventListener('change', (e) => applyResponsiveLayout(e.matches)); // 端末/向きの変化に追従
 
-// ── ヘルパー ─────────────────────────────────────────────
 
 // 決定論的な疑似乱数（seed → 0〜1 の値）
 function pseudoRandom(seed) {
@@ -1009,7 +1072,6 @@ function commitRows() {
 
   const { tRight } = visibleTimeRange();
 
-  // ── ホールド切れの検出 ───────────────────────────────────
   // タップ指定が切れた瞬間，画面右端より外（未表示）の先行確定ノートだけをランダムへ
   // 振り直す．画面内のノートは触らない（触ると指定段が突然別の段へ瞬間移動して見える）．
   const holdActiveNow = state.userRow !== null && state.curTime <= state.userRowUntil;
@@ -1091,7 +1153,6 @@ function quantizeItems(items, beats) {
   }
 }
 
-// ── レイアウト ────────────────────────────────────────────
 
 // 画面幅に応じて横スケール(LAYOUT.PX_PER_MS)を決める．
 // 基準幅(REF_ROLL_W)より狭い画面では掛け率を下げ画面に見える拍数を一定に保つ．
@@ -1168,7 +1229,6 @@ function rowY(idx) { return LAYOUT.RULER_H + idx * state.rowH; }
 // 再生ライン（再生ヘッド）の画面上の X 座標
 function playheadX() { return LAYOUT.LEFT_W + (viewW - LAYOUT.LEFT_W) * LAYOUT.PLAYHEAD_X_RATIO; }
 
-// ── 描画 ─────────────────────────────────────────────────
 
 function drawRuler() {
   const rH  = LAYOUT.RULER_H;
@@ -1377,7 +1437,6 @@ function drawNoteTexts() {
   ctx.lineJoin     = 'round';
   ctx.fillStyle    = '#ffffff';
 
-  // ── 文字の重なり回避（ほぼ完全に潰れた所だけ）──────────────
   // 単語の長さがほぼ0で返ると文字が同じ座標に集中して読めなくなる．中心間隔が collapseGap
   // 未満のときだけ spreadGap まで右へ離す．通常の歌詞は動かさない（時刻データも変えない）．
   const collapseGap = fontSize * 0.30; // この中心間隔未満なら「潰れ」とみなす(px)
@@ -1409,7 +1468,6 @@ function drawNoteTexts() {
   }
 }
 
-// ── 擬似ピッチ（ボカロエディタ風）────────────────────────
 // 段の中心を基本線に，ポルタメント（S字遷移）とビブラートを合成した「時刻→Y座標」の
 // 関数を定義し，ボールと軌跡の両方で共有する．
 
@@ -1450,12 +1508,12 @@ function pitchSegmentY(n, next, t) {
   if (t > portStart && segEnd > portStart) {
     const progress = (t - portStart) / (segEnd - portStart); // 0→1 の進み具合
     if (PITCH.OVERSHOOT > 0) {
-      // easeOutBack：目標を行き過ぎてから戻る（派手な動き．OVERSHOOT で行き過ぎ量を調整）
+      // easeOutBack：目標を行き過ぎてから戻る（OVERSHOOT で行き過ぎ量を調整）
       const overshoot = PITCH.OVERSHOOT;
       const back = progress - 1; // 目標(1.0)からの距離．行き過ぎを表す（負→0へ近づく）
       trans = 1 + (overshoot + 1) * back * back * back + overshoot * back * back;
     } else {
-      // smootherstep：曲率も両端で 0 になり遷移の「角」が出ずに丸くつながる
+      // smootherstep：両端で曲率も 0 になり遷移の角が出ない
       trans = progress * progress * progress * (progress * (progress * 6 - 15) + 10);
     }
     y = baseY + (targetY - baseY) * trans;
@@ -1538,8 +1596,7 @@ function drawPitchTrail() {
     if (!connected) penDown = false; // 無音区間では線を切る
   }
 
-  // ── 未来のピッチカーブ（再生ヘッドより右：薄い白でプレビュー）──
-  // まだ来ていない音符のカーブを薄く先行表示する．再生ライン付近が最も濃く右へ行くほど透明．
+  // まだ来ていない音符のカーブを薄く先行表示する
   const tRight      = state.curTime + (viewW - phX) / LAYOUT.PX_PER_MS;
   const futurePath  = new Path2D();
   let futurePen     = false;
@@ -1580,11 +1637,11 @@ function drawPitchTrail() {
   ctx.lineWidth   = PITCH.TRAIL_W * state.pitchScale;
   ctx.stroke(futurePath);
 
-  // 過去の軌跡：外側の淡い光 → 濃い芯 の2層で描く
+  // 過去の軌跡：外側のグロー → 芯 の2層で描く
   ctx.lineJoin = 'round';
   ctx.lineCap  = 'round';
 
-  // 外側の柔らかい光
+  // 外側のグロー
   ctx.strokeStyle = PITCH.TRAIL_GLOW_COLOR;
   ctx.lineWidth   = PITCH.TRAIL_GLOW_W * state.pitchScale;
   ctx.stroke(path);
@@ -1595,11 +1652,10 @@ function drawPitchTrail() {
   ctx.stroke(path);
 }
 
-// 声量に追従するボールの脈動レベル(0〜1)．生の声量は激しく跳ねるので
-// 「上がり速く・下がり遅く」滑らかに追従させてチラつきを防ぐ．
+// 声量に追従するボールの脈動レベル(0〜1)．急な跳ねを抑えるため上がり速く・下がり遅く追従させる
 let ballPulse = 0;
 
-// 再生ライン上で上下する光るボール（声量で膨らみ・光る）
+// 再生ライン上で上下するボール（声量で半径と発光が変わる）
 function drawPitchBall() {
   if (!PITCH.ENABLED) return;
   const y = pitchYAt(state.curTime);
@@ -1616,7 +1672,7 @@ function drawPitchBall() {
     if (vocalLevel > 1) vocalLevel = 1;
     if (vocalLevel < 0) vocalLevel = 0;
   }
-  // 上がり速く・下がり遅く＝歌声に弾けて反応し，余韻を残して戻る
+  // 上がり速く・下がり遅く
   const pulseSpeed = vocalLevel > ballPulse ? 0.5 : 0.12;
   ballPulse += (vocalLevel - ballPulse) * pulseSpeed;
 
@@ -1630,7 +1686,6 @@ function drawPitchBall() {
                   + (1 + PITCH.PULSE_BALL - PITCH.BALL_MIN_SCALE) * intensity;
   const ballR = PITCH.BALL_R * state.pitchScale * ballScale;
 
-  // ── 光彩（ハロー）：強く歌うほど明るく・大きく光る ──────────
   // 声量をそのまま使わず上に凸の曲線で持ち上げ低～中の声量でも光りやすくする
   const glowLevel = Math.pow(intensity, PITCH.GLOW_EASE);
   const a = PITCH.GLOW_ALPHA_MIN + (PITCH.GLOW_ALPHA_MAX - PITCH.GLOW_ALPHA_MIN) * glowLevel;
@@ -1642,8 +1697,7 @@ function drawPitchBall() {
   ctx.fillStyle = glow;
   ctx.fillRect(phX - glowR, y - glowR, glowR * 2, glowR * 2);
 
-  // ── ボール本体 ─────────────────────────────────────────
-  // 強く歌うほど色を白へ寄せて芯まで光って見せる（GLOW_WHITEN が白寄せ量）
+  // 強く歌うほど色を白へ寄せる（GLOW_WHITEN が白寄せ量）
   const whiten = glowLevel * PITCH.GLOW_WHITEN;   // 0=元の色 〜 1=白
   const cr = Math.round(br + (255 - br) * whiten);
   const cg = Math.round(bg + (255 - bg) * whiten);
@@ -1715,7 +1769,7 @@ function drawActiveNotes() {
   ctx.restore();
 }
 
-// タッチ位置の光ボールと彗星の尾（色は指定中段のキャラカラー．古い点ほど細く薄く消える）
+// タッチ位置の光ボールと軌跡を描く（色は指定中段のキャラカラー）
 function drawTouchPointer() {
   const now = performance.now();
 
@@ -1724,7 +1778,7 @@ function drawTouchPointer() {
     touchTrail.shift();
   }
 
-  // 彗星の尾：隣り合う履歴点を線分で結ぶ．新しいほど太く濃く．
+  // 履歴点を線分で結ぶ（新しいほど太く濃い）
   ctx.lineCap = 'round';
   for (let i = 1; i < touchTrail.length; i++) {
     const p0 = touchTrail[i - 1];
@@ -1787,7 +1841,6 @@ function drawPlayhead() {
   ctx.fill();
 }
 
-// ── レンダリングループ ────────────────────────────────────
 function render() {
   // onTimeUpdate は数十ms間隔でしか発火しないため，壁時計で補間して滑らかにする
   if (state.isPlaying && state.syncWallClock > 0) {

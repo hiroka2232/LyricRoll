@@ -98,6 +98,7 @@ let isAppReady = false;          // onAppReady が呼ばれたら true
 let isSongChosen = false;        // スタート画面で曲が選ばれたら true
 let isSongLoading = false;       // createFromSongUrl 実行中（並列呼び出し防止）
 let pendingNextSongIdx = null;   // 読み込み中に来た切り替え要求の保持（null=なし）
+let isTimerReady = false;        // 今の読み込みで onTimerReady が来たか（音源の準備完了）
 
 // サーバーが一時的に遅いと読み込みが失敗したり歌詞が空で返るので，少し待って自動でやり直す
 let loadAttempt = 0;               // 現在の曲で試した回数（loadSong でリセット）
@@ -129,6 +130,16 @@ function retryOrFailLoad(reason) {
   }
 }
 
+// 再生ボタンを有効にして読み込みオーバーレイを消す．歌詞データが揃い（isReadyToPlay），
+// かつ音源の準備もできた（isTimerReady）ときだけ行う．歌詞が空でやり直し中や失敗表示中に
+// onTimerReady が来ても，エラー表示を消さず，歌詞の無いまま曲だけ再生できる状態にしない
+function enablePlayIfReady() {
+  if (!state.isReadyToPlay || !isTimerReady) return;
+  playBtn.innerHTML     = ICON_PLAY;
+  playBtn.disabled      = false;
+  overlay.style.display = 'none';
+}
+
 // createFromSongUrl を安全に呼ぶ唯一の窓口（並列呼び出しを防ぐ）
 function startSongLoad(idx) {
   if (isSongLoading) {
@@ -138,6 +149,7 @@ function startSongLoad(idx) {
   }
   isSongLoading        = true;
   pendingNextSongIdx = null;
+  isTimerReady         = false; // やり直しのたびに音源の準備状態も取り直す
 
   // 第二引数の video で音楽地図・歌詞タイミングのバージョンを固定する（曲データ側の video）．
   // catch しないと，読み込み失敗時に isSongLoading が true のまま固まり
@@ -411,14 +423,16 @@ player.addListener({
 
     // VUメーター用：この曲の最大声量（正規化の分母．0 なら無効扱い）
     state.maxVocalAmplitude = player.getMaxVocalAmplitude();
+
+    // 音源のほうが先に準備できていた場合はここで再生ボタンを有効化する
+    enablePlayIfReady();
   },
 
-  // requestPlay() が機能するのはこのイベント以降．ここで再生ボタンを有効化し
+  // requestPlay() が機能するのはこのイベント以降．歌詞データも揃っていれば再生ボタンを有効化し
   // 読み込みオーバーレイを消して「押せる＝本当に音が鳴る」状態に揃える．
   onTimerReady: (_timer) => {
-    playBtn.innerHTML     = ICON_PLAY;
-    playBtn.disabled      = false;
-    overlay.style.display = 'none';
+    isTimerReady = true;
+    enablePlayIfReady();
   },
 
   onTimeUpdate: (t) => {
@@ -513,9 +527,10 @@ playBtn.addEventListener('click',  () => { if (player.video) player.requestPlay(
 pauseBtn.addEventListener('click', () => { if (player.video) player.requestPause(); });
 stopBtn.addEventListener('click',  () => { if (player.video) player.requestStop(); });
 
-// 再生中なら一時停止，止まっているなら再生（スペースキーのトグル用）
+// 再生中なら一時停止，止まっているなら再生（スペースキーのトグル用）．
+// 再生ボタンと同じく，歌詞データが揃うまでは何もしない
 function togglePlayPause() {
-  if (!player.video) return;
+  if (!player.video || !state.isReadyToPlay) return;
   if (state.isPlaying) player.requestPause();
   else               player.requestPlay();
 }

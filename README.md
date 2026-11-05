@@ -65,8 +65,8 @@ DAWならではのショートカットキーを実装しました。
 
 ## 動作環境
 
-- **対象ブラウザ**: Google Chrome / Microsoft Edge / Safari（いずれも最新版）
-- **OS**: Windows / macOS / iOS / Android
+- **対象ブラウザ**: Google Chrome / Safari（いずれも最新版）
+- **OS**: Windows / macOS / iOS
 - **ネットワーク接続が必要です**（TextAlive API・楽曲データ・Web フォントの取得のため）
 - 音が出る環境（スピーカー / イヤホン）を推奨します。
 - スマートフォンでは**横向き**での利用が必須です。
